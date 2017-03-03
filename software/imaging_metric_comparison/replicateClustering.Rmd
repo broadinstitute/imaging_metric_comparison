@@ -1,0 +1,147 @@
+---
+title: "Clustering Replicates"
+output: html_document
+---
+
+After Hit Selection the next step is to do a clustering depending on the phenotype of the compound.
+
+- Summary of a compound is done by taking the average along the replicate. (selected in Markdown file: replicateCorrelation.Rmd)
+- Calculate the correlation compound-compound. This can be used as a metric for clustering.
+- 1-corr is a metric: usually use Agglomerative clustering (explore different linkage function)
+
+## Data
+
+The input contains only the high median correlation compounds.
+The input data is a 3752 by 803 matrix.
+There are 3752 different observations and 799 features (extracted with CellProfiler).
+Each compound (938 different) has 4 replicates.
+
+
+```{r setup, include=FALSE}
+# all usefull libraries
+library(dplyr)
+library(ggplot2)
+```
+
+```{r import data}
+# import data
+pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection.rds") # 3752x803
+
+```
+
+## Summary of the compound
+
+Do the average along replicates.
+
+```{r compound summary}
+# find the different compounds
+IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
+dim(IDs)
+
+# average along replicate
+sum.comp <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate))
+
+```
+
+## Agglomerative clusering
+
+type of linkage function: "ward", "single", "complete", "average", "mcquitty", "median" or "centroid"
+Calculate the correlation compound to compound and as a distance metric use 1 - correlation.
+dist = 2 -> corr = -1
+dist = 1 -> corr = 0
+dist = 0 -> corr = 1
+Use the agglomerative clustering with the average linkage function.
+
+```{r clustering}
+# correlation compound-compound
+cor.comp <- cor(t(sum.comp[, !names(sum.comp) %in% c("Image_Metadata_BROAD_ID")]))
+
+# metric for clustering: 1 - correlation
+met.clust <- as.dist(1 - cor.comp)
+
+# Agglomerative clustering using a linkage function
+clust.res <- hclust(met.clust, method = "average")
+
+plot(clust.res, cex = 0.01, hang = -1)
+```
+
+```{r other dendrogram, include=FALSE}
+if(FALSE){
+  clusterCut <- cutree(clust.res, k=10)
+
+  plot(clust.res, cex = 0.01)
+  rect.hclust(clust.res, k=10, border="red")
+  
+  library(circlize)
+  library(dendextend)
+  dend <- as.dendrogram(clust.res)
+  dend <- dend %>% 
+     color_branches(k=10) %>% 
+     color_labels
+  par(mar = rep(0,4))
+  circlize_dendrogram(dend, labels = FALSE, dend_track_height = 0.9) 
+}
+```
+
+
+## stability around different threshold
+Visually on the dendrogram choose a range of threshold.
+From 0.2 to 0.7 with a interval of 0.01. epsilon = 0.01.
+The threshold was chosen visually. We want the lowest threshold with the maximal stability.
+We can see that around 0.5 we reached a kind of saturation.
+
+```{r stability}
+# Interval of threshold to find the optimal one
+height.interval <- seq(from = 0.2, to = 0.7, by = 0.01)
+epsilon <- 0.01
+
+#stability of each threshold
+h.stability <- c()
+
+for ( h in height.interval ){
+  # look at cluster around h (h + epsilon and h - epsilon) and find the stability around it
+  h.minus <- cutree(clust.res, h = h - epsilon)
+  h.plus <- cutree(clust.res, h = h + epsilon)
+  
+  h.stability <- c(h.stability, sum(h.minus == h.plus)/length(h.plus))
+}
+
+mav <- function(x,n=5){stats::filter(x,rep(1/n,n), sides=2)}
+
+h.stability.mav <- mav(h.stability,n = 5)
+plot(height.interval, h.stability, type = "b", col = "blue", xlab = "Height threshold", ylab = "Stability")
+lines(height.interval, h.stability.mav, type = "l", col = "red")
+thres <- 0.53
+abline(v=thres)
+legend("bottomright", c("Stability", "Moving average", "Threshold"),lty=c(1,1,1),col=c("blue","red", "black"))
+```
+
+## Dendrogram of the cluters of the compounds
+Plotting the dendrogram according to the threshold
+
+```{r dendrogram}
+clusterCut <- as.data.frame(t(cutree(clust.res, h = thres)))
+
+plot(clust.res, cex = 0.01, hang = -1)
+rect.hclust(clust.res, h = thres, border = "red")
+
+```
+
+
+## Extract names for each clusters
+
+```{r clusters}
+# combine the IDs and the clusters
+names(clusterCut) <- IDs$Image_Metadata_BROAD_ID
+
+# sort the clusters
+clust <- t(sort(clusterCut))
+colnames(clust) <- c("cluster")
+knitr::kable(clust, format = "markdown")
+
+```
+
+
+
+
+

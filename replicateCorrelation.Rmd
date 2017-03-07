@@ -165,7 +165,7 @@ print(high.median.cor)
 ## Saving data
 
 ```{r output data}
-# select high median correlation replicate 
+# select high median correlation replicate #
 pf$data <- filter(pf$data, Image_Metadata_BROAD_ID %in% hit.select.IDs) # 3752x803
 
 saveRDS(pf, "../input/Pf_Gustafsdottir_hitSelection.rds")

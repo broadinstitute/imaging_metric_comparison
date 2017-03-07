@@ -38,6 +38,13 @@ Do the average along replicates.
 IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
 dim(IDs)
 
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+map.names <- pf$data %>% dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% unique
+rownames(map.names) <- map.names$Image_Metadata_BROAD_ID
+map.names[, 1] <- as.character(map.names[, 1])
+map.names[, 2] <- as.character(map.names[, 2])
+
+
 # average along replicate
 sum.comp <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate))
 
@@ -111,7 +118,7 @@ mav <- function(x,n=5){stats::filter(x,rep(1/n,n), sides=2)}
 h.stability.mav <- mav(h.stability,n = 5)
 plot(height.interval, h.stability, type = "b", col = "blue", xlab = "Height threshold", ylab = "Stability")
 lines(height.interval, h.stability.mav, type = "l", col = "red")
-thres <- 0.53
+thres <- 0.51
 abline(v=thres)
 legend("bottomright", c("Stability", "Moving average", "Threshold"),lty=c(1,1,1),col=c("blue","red", "black"))
 ```
@@ -133,14 +140,28 @@ rect.hclust(clust.res, h = thres, border = "red")
 ```{r clusters}
 # combine the IDs and the clusters
 names(clusterCut) <- IDs$Image_Metadata_BROAD_ID
+clusterCut <- t(clusterCut)
 
-# sort the clusters
-clust <- t(sort(clusterCut))
-colnames(clust) <- c("cluster")
-knitr::kable(clust, format = "markdown")
+clusterCut.df <- data.frame(Name = rownames(clusterCut), Cluster.ID = as.vector(clusterCut))
+clusterCut.df[,1] <- as.character(clusterCut.df[,1])
+clusterCut.df <- dplyr::left_join(clusterCut.df, map.names, by = c("Name" = "Image_Metadata_BROAD_ID"))
 
 ```
 
+## MOA data
+
+```{r import MOAs}
+# import MOAs data
+moa <- read.csv("../input/MOAs.csv")
+moa[,1] <- as.character(moa[,1])
+
+# join moa data to cluster data 
+clusterCut.df <- dplyr::left_join(clusterCut.df, moa, by = c("Image_Metadata_SOURCE_COMPOUND_NAME" = "Name"))
+
+
+knitr::kable(clusterCut.df, caption = "Clustering of components with associated MOAs")
+
+```
 
 
 

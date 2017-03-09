@@ -26,7 +26,7 @@ library(reshape2)
 
 ```{r import data}
 # import data
-pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection.rds")
+pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection_distJ.rds")
 
 ```
 
@@ -124,7 +124,7 @@ for ( h in height.interval ){
 
 mav <- function(x,n=5){stats::filter(x, rep(1/n,n), sides=2)}
 
-h.stability.mav <- mav(h.stability,n = 5)
+h.stability.mav <- mav(h.stability,n = 4)
 plot(height.interval, h.stability, type = "b", col = "blue", xlab = "Height threshold", ylab = "Stability")
 lines(height.interval, h.stability.mav, type = "l", col = "red")
 
@@ -176,29 +176,20 @@ df.clust.moa <- final.sum.comp.clust.moa %>% select(cluster, MOA)
 knitr::kable(final.sum.comp.clust.moa, caption = "Clustering of components with associated MOAs")
 
 ```
+
 ## Fisher's exact test
+
 4 different classes created comparing all pairs of data:
+
 - same MOA and same cluster
+
 - same MOA but different cluster
+
 - different MOA but same cluster
+
 - different MOA and different cluster
-```{r Fisher's exact test example, include = FALSE}
-# create matrix of comparison
-test <- data.frame(moa = c("a", "a", "a", "b", "c", "d", "e", "e", "a"), clust = c(1, 2, 1, 3, 3, 1, 2, 2, 1))
-moa.mat <- outer(test$moa, test$moa, function(x, y) x==y)
-clust.mat <- outer(test$clust, test$clust, function(x, y) x==y)
-tmp1 <- melt(moa.mat) %>% plyr::rename(c("value" = "same.moa"))
-tmp2 <- melt(clust.mat)
-tmp1$same.clust <- tmp2$value
-tmp1 <- tmp1 %>% filter(., Var1 < Var2)
 
-contingency.table <- tmp1 %>% group_by(same.moa, same.clust) %>% summarise(cnt = n()) %>% xtabs(cnt ~ same.moa+same.clust, data = .)
-fisher.test(contingency.table)
-
-```
-
-
-```{r Fisher's exact test}
+```{r Fishers exact test}
 # create matrix of comparison
 moa.mat <- outer(df.clust.moa$MOA, df.clust.moa$MOA, function(x, y) x==y)
 clust.mat <- outer(df.clust.moa$cluster, df.clust.moa$cluster, function(x, y) x==y)
@@ -210,14 +201,20 @@ tmp1 <- tmp1 %>% filter(., Var1 < Var2)
 
 # contingency table
 contingency.table <- tmp1 %>% group_by(same.moa, same.clust) %>% summarise(cnt = n()) %>% xtabs(cnt ~ same.moa+same.clust, data = .)
+contingency.mat <- matrix(c(contingency.table[2,2], contingency.table[2,1], contingency.table[1,2], contingency.table[1,1]), nrow = 2, ncol = 2, byrow = TRUE)
+
+contingency.table
 
 # fisher test
-fisher.test(contingency.table)
+fisher.test(contingency.mat, alternative = "greater")
 
 ```
 
 
+## Results
 
+We expect an odds ratio > 1, which means that if we have the same MOA, there is a higher chance to capture the same cluster.
+Moreover we can see that a p-value smaller than 0.05 means that we reject H0.
 
 
 

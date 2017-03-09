@@ -47,6 +47,7 @@ pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "")
 ```{r parameters}
 # number of data to make the non replicate correlation
 N <- 5000
+set.seed(45)
 ```
 
 ## Separation of data

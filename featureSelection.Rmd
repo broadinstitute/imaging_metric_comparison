@@ -17,6 +17,7 @@ There are 3752 different observations and 799 features (extracted with CellProfi
 Each compound (938 different) has 4 replicates.
 
 ```{r import data}
+set.seed(42)
 pf <- readRDS("../input/Pf_Gustafsdottir.rds")
 dim(pf$data)
 
@@ -38,8 +39,14 @@ corrplot::corrplot(cor.feat, tl.cex = 0.5, method = "color",  tl.pos="n", order 
 # using findCorrelation find the set of features that are too correlated
 col.to.remove <- findCorrelation(cor.feat, cutoff = 0.9)
 
+length(col.to.remove)
+
 # select the features
 pf$selected.features <- feat[,-col.to.remove]
+
+metadata <- select(pf$data, one_of("Image_Metadata_BROAD_ID", "Image_Metadata_SOURCE_COMPOUND_NAME"))
+
+pf$selected.features <- pf$selected.features %>% bind_cols(., metadata)
 
 dim(pf$selected.features)
 

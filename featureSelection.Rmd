@@ -1,0 +1,48 @@
+---
+title: "Feature Selection"
+output: html_document
+---
+
+```{r libraries, include=FALSE}
+library(ggplot2)
+library(caret)
+library(dplyr)
+```
+
+## Data
+
+The input contains only the high median correlation compounds.
+The input data is a 3752 by 803 matrix.
+There are 3752 different observations and 799 features (extracted with CellProfiler).
+Each compound (938 different) has 4 replicates.
+
+```{r import data}
+pf <- readRDS("../input/Pf_Gustafsdottir.rds")
+dim(pf$data)
+
+# Remove the negative control from the data
+pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "")
+dim(pf$data)
+```
+
+## Feature Selection
+
+```{r correaltion}
+# correlation matrix featuresxfeatures
+feat <- pf$data %>% select(-one_of("Image_Metadata_BROAD_ID", "Image_Metadata_SOURCE_COMPOUND_NAME", "Plate", "Well"))
+cor.feat <- cor(feat)
+corrplot::corrplot(cor.feat, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
+```
+
+```{r find correlation}
+# using findCorrelation find the set of features that are too correlated
+col.to.remove <- findCorrelation(cor.feat, cutoff = 0.9)
+
+# select the features
+pf$selected.features <- feat[,-col.to.remove]
+
+dim(pf$selected.features)
+
+# save the dataset
+saveRDS(pf, "../input/Pf_Gustafsdottir_sel_feat.rds")
+```

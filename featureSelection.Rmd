@@ -45,6 +45,8 @@ pf$data <- pf$data %>% select(-one_of(c(pf$feat_cols[col.to.remove])))
 
 dim(pf$data)
 
+pf$feat_cols <- pf$feat_cols[-col.to.remove]
+
 # save the dataset
 saveRDS(pf, "../input/Pf_Gustafsdottir_sel_feat.rds")
 ```

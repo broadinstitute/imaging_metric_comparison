@@ -3,6 +3,8 @@ title: "Feature Selection"
 output: html_document
 ---
 
+This Markdown aims at doing feature selection. In this version, we use findCorrelation to remove the features that are too correlated.
+
 ```{r libraries, include=FALSE}
 library(ggplot2)
 library(caret)

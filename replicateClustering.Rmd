@@ -26,7 +26,7 @@ library(reshape2)
 
 ```{r import data}
 # import data
-pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection_distJ.rds")
+pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection_pearsonCorr.rds")
 
 ```
 
@@ -81,22 +81,20 @@ clust.res <- hclust(met.clust, method = "average")
 plot(clust.res, cex = 0.01, hang = -1)
 ```
 
-```{r other dendrogram, include=FALSE}
-if(FALSE){
-  clusterCut <- cutree(clust.res, k=10)
+```{r other dendrogram, include=FALSE, eval=FALSE}
+clusterCut <- cutree(clust.res, k=10)
 
-  plot(clust.res, cex = 0.01)
-  rect.hclust(clust.res, k=10, border="red")
-  
-  library(circlize)
-  library(dendextend)
-  dend <- as.dendrogram(clust.res)
-  dend <- dend %>% 
-     color_branches(k=10) %>% 
-     color_labels
-  par(mar = rep(0,4))
-  circlize_dendrogram(dend, labels = FALSE, dend_track_height = 0.9) 
-}
+plot(clust.res, cex = 0.01)
+rect.hclust(clust.res, k=10, border="red")
+
+library(circlize)
+library(dendextend)
+dend <- as.dendrogram(clust.res)
+dend <- dend %>% 
+   color_branches(k=10) %>% 
+   color_labels
+par(mar = rep(0,4))
+circlize_dendrogram(dend, labels = FALSE, dend_track_height = 0.9) 
 ```
 
 
@@ -108,7 +106,7 @@ We can see that around 0.5 we reached a kind of saturation.
 
 ```{r stability}
 # Interval of threshold to find the optimal one
-height.interval <- seq(from = 0.2, to = 0.7, by = 0.01)
+height.interval <- seq(from = 0.2, to = 0.8, by = 0.01)
 epsilon <- 0.01
 
 #stability of each threshold
@@ -129,7 +127,7 @@ plot(height.interval, h.stability, type = "b", col = "blue", xlab = "Height thre
 lines(height.interval, h.stability.mav, type = "l", col = "red")
 
 # find the threshold where the cut will be applied
-thres <- height.interval[min(which(h.stability >= 0.95))]
+thres <- height.interval[min(which(h.stability >= 0.97))]
 abline(v=thres)
 legend("bottomright", c("Stability", "Moving average", "Threshold"), lty=c(1,1,1), col=c("blue","red", "black"))
 ```

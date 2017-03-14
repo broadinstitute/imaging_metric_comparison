@@ -26,13 +26,13 @@ library(doMC)
 
 ```{r import data}
 # import data
-#pf <- readRDS("../input/Pf_Gustafsdottir.rds") # 7680x803
+pf <- readRDS("../input/Pf_Gustafsdottir.rds") # 7680x803
 
 # Remove the negative control from the data
-#pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
+pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
 
 ##
-pf <- readRDS("../input/Pf_Gustafsdottir_sel_feat.rds")
+#pf <- readRDS("../input/Pf_Gustafsdottir_sel_feat.rds")
 ```
 
 ## Parameter
@@ -248,7 +248,7 @@ print(high.median.cor)
 # select high median correlation replicate
 pf$data <- filter(pf$data, Image_Metadata_BROAD_ID %in% hit.select.IDs) # 3752x803
 
-saveRDS(pf, "../input/Pf_Gustafsdottir_hitSelection_featSel_pearsonCorr.rds")
+saveRDS(pf, "../input/Pf_Gustafsdottir_hitSelection_pearsonCorr.rds")
 
 ```
 

@@ -1,14 +1,17 @@
 ---
 title: "Feature Selection"
-output: html_document
+output: html_notebook
 ---
 
 This Markdown aims at doing feature selection. In this version, we use findCorrelation to remove the features that are too correlated.
 
-```{r libraries, include=FALSE}
+```{r libraries, include=FALSE, message=FALSE}
 library(ggplot2)
 library(caret)
+library(magrittr)
 library(dplyr)
+library(tidyverse)
+library(stringr)
 ```
 
 ## Data
@@ -18,38 +21,59 @@ The input data is a 3752 by 803 matrix.
 There are 3752 different observations and 799 features (extracted with CellProfiler).
 Each compound (938 different) has 4 replicates.
 
-```{r import data}
+```{r, message=FALSE}
 set.seed(42)
-pf <- readRDS("../input/Pf_Gustafsdottir.rds")
-dim(pf$data)
 
-# Remove the negative control from the data
-pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "")
-dim(pf$data)
+profiles <- 
+  list.files("../../backend/BBBC022_2013/", 
+          pattern = "*_augmented.csv",
+          recursive = T,
+          full.names = T) %>%
+  map_df(read_csv)
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_")
+  
 ```
 
 ## Feature Selection
 
-```{r correaltion}
+```{r correlation}
 # correlation matrix featuresxfeatures
-feat <- pf$data[, pf$feat_cols]
-cor.feat <- cor(feat)
-corrplot::corrplot(cor.feat, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
+
+profiles %<>%
+  cytominer::select(
+    sample = 
+      profiles %>% 
+      filter(Metadata_pert_type == "control"),
+    variables = variables,
+    operation = "variance_threshold"
+  )
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+correlation <- 
+  profiles %>%
+  select(one_of(variables)) %>%
+  cor()
+
+corrplot::corrplot(correlation, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
 ```
+
 
 ```{r find correlation}
-# using findCorrelation find the set of features that are too correlated
-col.to.remove <- findCorrelation(cor.feat, cutoff = 0.9)
-length(col.to.remove)
+profiles %<>%
+  cytominer::select(
+    sample = profiles,
+    variables = variables,
+    operation = "correlation_threshold"
+  )
 
-# select the features
-pf$data <- pf$data %>% select(-one_of(c(pf$feat_cols[col.to.remove])))
-dim(pf$data)
-
-# select features name
-pf$feat_cols <- pf$feat_cols[-col.to.remove]
-length(pf$feat_cols)
-
-# save the dataset
-saveRDS(pf, "../input/Pf_Gustafsdottir_sel_feat.rds")
+profiles %>%
+  write_csv("../../input/BBBC022_2013_sel_feat.csv")
 ```
+

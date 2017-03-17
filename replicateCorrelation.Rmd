@@ -18,13 +18,65 @@ Each compound (1600 different) has 4 replicates. The negative control has 1280 r
 
 ```{r setup, include=FALSE}
 # all usefull libraries
+library(magrittr)
 library(dplyr)
 library(ggplot2)
 library(foreach)
 library(doMC)
+library(stringr)
+library(tidyverse)
 ```
 
-```{r import data}
+```{r import data with feature selection, message=FALSE, eval=FALSE}
+profiles <- 
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat.csv")) # 7680x(nfeat+metadata)
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_") # metadata
+
+# Remove the negative control (DMSO) from the data
+profiles %<>% 
+  filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
+```
+
+```{r import data no feature selection, message=FALSE}
+profiles <- 
+  list.files("../../backend/BBBC022_2013/", 
+          pattern = "*_normalized.csv",
+          recursive = T,
+          full.names = T) %>%
+  map_df(read_csv)
+
+dim(profiles)
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_")
+  
+profiles %<>%
+  cytominer::select(
+    sample = 
+      profiles %>% 
+      filter(Metadata_pert_type == "control"),
+    variables = variables,
+    operation = "variance_threshold"
+  )
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+# Remove the negative control (DMSO) from the data
+profiles %<>% 
+  filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
+
+```
+
+```{r import data, eval=FALSE}
 # import data
 pf <- readRDS("../input/Pf_Gustafsdottir.rds") # 7680x803
 
@@ -37,7 +89,7 @@ pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
 
 ## Parameter
 ```{r parameter}
-# method of correlation: "pearson" (default), "kendall", "spearman"
+# method of correlation: "pearson", "kendall", "spearman"
 cor.method <- "pearson"
 # number of data to make the non replicate correlation
 N <- 5000
@@ -53,9 +105,8 @@ Image_Metadata_BROAD_ID = gives the ID of the compound that was added.
 
 ```{r separation of data}
 # find the different compounds
-IDs <- distinct(pf$data, Image_Metadata_BROAD_ID) # 1600
+IDs <- distinct(profiles, Metadata_broad_sample)
 dim(IDs)
-
 ```
 
 ## Correlation of the data
@@ -69,13 +120,18 @@ start.time <- Sys.time()
 
 registerDoMC(7)  # number of CPU cores  
 
-comp.cor.median <- foreach(variable = 1:length(IDs$Image_Metadata_BROAD_ID), .combine=cbind) %dopar% {
+comp.cor.median <- foreach(i = 1:length(IDs$Metadata_broad_sample), .combine=cbind) %dopar% {
 
   #filtering to choose only for one compound
-  comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% IDs$Image_Metadata_BROAD_ID[variable])
+  #comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% IDs$Image_Metadata_BROAD_ID[i])
+  comp <-
+    filter(profiles, Metadata_broad_sample %in% IDs$Metadata_broad_sample[i])
+  comp <-
+    comp[, variables] %>%
+    as.matrix()
 
   # correlation of the features
-  comp.cor <- cor(t(comp[,pf$feat_cols]), method = cor.method)
+  comp.cor <- cor(t(comp), method = cor.method)
   
   # save median of the correlation
   comp.cor.median <- median(comp.cor[lower.tri(comp.cor)],na.rm=TRUE) # 1600 values
@@ -85,41 +141,6 @@ comp.cor.median <- foreach(variable = 1:length(IDs$Image_Metadata_BROAD_ID), .co
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 time.taken # 22.55 secs instead of 1.179 minutes
-
-hist(comp.cor.median,
-     main="Histogram for Median Replicate Correlation",
-     xlab="Median Replicate Correlation", xlim = range(-1, 1))
-```
-
-
-```{r correlation, include=FALSE, eval=FALSE}
-# computational time
-start.time <- Sys.time()
-
-comp.cor.median <- c()
-# loop over all IDs
-for (variable in IDs$Image_Metadata_BROAD_ID){ # 1600 IDs
-  #filtering to choose only for one compound
-  comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% variable)
-
-  # correlation of the features
-  comp.cor <- cor(t(comp[,pf$feat_cols]), method = cor.method)
-  
-  # if not the negative control
-  if(variable %in% IDs$Image_Metadata_BROAD_ID[1:3]){  
-    #plot of the correlation
-    # tl.pos="n" remove text legend
-    corrplot::corrplot(comp.cor, tl.cex = 0.5, method = "ellipse",  tl.pos="n")
-  }
-  
-  # save median of the correlation
-  comp.cor.median <- c(comp.cor.median, median(comp.cor[lower.tri(comp.cor)],na.rm=TRUE)) # 1600 values
-  
-}
-
-end.time <- Sys.time()
-time.taken <- end.time - start.time
-time.taken # 1.179 minutes
 
 hist(comp.cor.median,
      main="Histogram for Median Replicate Correlation",
@@ -140,58 +161,38 @@ Select randomly 4 replicates each coming for a different compound and calculate 
 Repeat this N times to get a distribution.
 Finally estimate a threshold (95th percentile) to filter out compounds with poor replicate correlation.
 
-```{r replicate correlation in parallel, include=FALSE, eval=FALSE}
-# computational time
-start.time <- Sys.time()
-
-# loop over N times to get a distribution
-random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
-  # group by IDs
-  # sample fixed number per group -> choose 4 replicates randomly from different groups
-  random.replicate <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% sample_n(1, replace = FALSE) %>% ungroup(random.replicate)
-  random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
-  
-  # correlation of the features
-  random.replicate.cor <- cor(t(random.replicate[,pf$feat_cols]), method = cor.method)
-  
-  # median of the non replicate correlation
-  random.replicate.cor.median <- median(random.replicate.cor[lower.tri(random.replicate.cor)],na.rm=TRUE) # vector length N
-  
-}
-
-end.time <- Sys.time()
-time.taken <- end.time - start.time
-time.taken # 1.31 mins instead of 4.44 mins
-
-# histogram plot
-hist(random.replicate.cor.median,
-     main="Histogram for Non Replicate Median Correlation",
-     xlab="Non Replicate Median Correlation", xlim = range(-1, 1))
-
-# threshold to determine if can reject H0
-thres <- quantile(random.replicate.cor.median, .95)
-print(thres)
-```
-
 ```{r replicate correlation} 
 # computational time
 start.time <- Sys.time()
 
-# vector of the median of non replicate correlation
-random.replicate.cor.median <- c()
+# set seed for reproducibility
+set.seed(42)
+
+# random sequence for reproducibility
+a <- sample(1:10000, N, replace=F)
 
 # loop over N times to get a distribution
-for (i in 1:N){
+random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
+  # set seed according to random sequence
+  set.seed(a[i])
+  
   # group by IDs
-  # sample fixed number per group -> choose 4 replicates randomly from different groups
-  random.replicate <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% sample_n(1, replace = FALSE) %>% ungroup(random.replicate)
+  # sample fixed number per group -> choose 4 replicates randomly from different group
+  random.replicate <- 
+    profiles %>% 
+    group_by(Metadata_broad_sample) %>% 
+    sample_n(1, replace = FALSE) %>% 
+    ungroup(random.replicate)
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
+  comp <- random.replicate[,variables] %>% 
+    as.matrix()
+  
   # correlation of the features
-  random.replicate.cor <- cor(t(random.replicate[,pf$feat_cols]), method = cor.method)
+  random.replicate.cor <- cor(t(comp), method = cor.method)
   
   # median of the non replicate correlation
-  random.replicate.cor.median <- c(random.replicate.cor.median, median(random.replicate.cor[lower.tri(random.replicate.cor)],na.rm=TRUE)) # vector length N
+  random.replicate.cor.median <- median(random.replicate.cor[lower.tri(random.replicate.cor)],na.rm=TRUE) # vector length N
   
 }
 
@@ -221,7 +222,8 @@ inds <- which(comp.cor.median > thres) # 938 out of 1600
 hit.select <- comp.cor.median[inds]
 
 # find component that are hit selected
-hit.select.IDs <- IDs$Image_Metadata_BROAD_ID[inds]
+#hit.select.IDs <- IDs$Image_Metadata_BROAD_ID[inds]
+hit.select.IDs <- IDs$Metadata_broad_sample[inds]
 
 # ratio of strong median replicate correlation
 high.median.cor <- length(hit.select)/length(comp.cor.median)
@@ -230,7 +232,9 @@ print(high.median.cor)
 ```
 
 
-## Results
+## Results 
+
+For previous dataset
 
 |  Method   | Pearson | Spearman | Kendall | Euclidean | Maximum | Manhattan |
 | --------- | ------- | -------- | ------- | --------- | ------- | --------- |
@@ -245,10 +249,12 @@ print(high.median.cor)
 ## Saving data
 
 ```{r output data}
-# select high median correlation replicate
-pf$data <- filter(pf$data, Image_Metadata_BROAD_ID %in% hit.select.IDs) # 3752x803
+# select high median correlation replicate 
+profiles %<>% 
+  filter(Metadata_broad_sample %in% hit.select.IDs)
 
-saveRDS(pf, "../input/Pf_Gustafsdottir_hitSelection_pearsonCorr.rds")
+profiles %>%
+  write_csv("../../input/BBBC022_2013_hit_sel_pearson.csv")
 
 ```
 

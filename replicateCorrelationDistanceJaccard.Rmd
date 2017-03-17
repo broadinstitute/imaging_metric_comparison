@@ -30,24 +30,67 @@ Each compound (1600 different) has 4 replicates. The negative control has 1280 r
 20 plates with 384 wells in each plate.
 selected.features contains the features that were selected in featureSelection.Rmd (using findCorrelation), the data is a 6400 by 270 matrix (negative control having been removed). 
 
-```{r setup, include=FALSE, warning=FALSE}
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
 # all usefull libraries
+library(magrittr)
 library(dplyr)
 library(ggplot2)
 library(foreach)
 library(doMC)
+library(stringr)
+library(tidyverse)
 ```
 
-```{r import data}
-# import data
-pf <- readRDS("../input/Pf_Gustafsdottir_sel_feat.rds")
 
-## without feature selection
-#pf <- readRDS("../input/Pf_Gustafsdottir.rds")
+```{r import data with feature selection, message=FALSE, eval=FALSE}
+profiles <- 
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat.csv")) # 7680x(nfeat+metadata)
 
-# Remove the negative control from the data
-#pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "")
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_") # metadata
+
+# Remove the negative control (DMSO) from the data
+profiles %<>% 
+  filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
 ```
+
+```{r import data no feature selection, message=FALSE}
+profiles <- 
+  list.files("../../backend/BBBC022_2013/", 
+          pattern = "*_normalized.csv",
+          recursive = T,
+          full.names = T) %>%
+  map_df(read_csv)
+
+dim(profiles)
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_")
+  
+profiles %<>%
+  cytominer::select(
+    sample = 
+      profiles %>% 
+      filter(Metadata_pert_type == "control"),
+    variables = variables,
+    operation = "variance_threshold"
+  )
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+# Remove the negative control (DMSO) from the data
+profiles %<>% 
+  filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
+
+```
+
 
 ## Parameters
 ```{r parameters}
@@ -57,20 +100,22 @@ N <- 5000
 # seed for the reproducibility
 set.seed(42)
 
+# number of CPU cores for parallelization
+registerDoMC(7)
+
 # number of features to take
-n.feat <- 30
+n.feat <- 50
 ```
 
 ## Separation of data
 
 Separation is made according to the compound that was added.
-Image_Metadata_BROAD_ID = gives the ID of the compound that was added.
+Metadata_broad_sample = gives the ID of the compound that was added.
 
 ```{r separation of data}
 # find the different compounds
-IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
+IDs <- distinct(profiles, Metadata_broad_sample)
 dim(IDs)
-
 ```
 
 ## Distance of the data
@@ -94,34 +139,41 @@ distJaccard <- function(x, y){
   C <- names(x.sort[seq.int(to = length(x.sort), length.out = n.feat)])
   D <- names(y.sort[seq.int(to = length(y.sort), length.out = n.feat)])
   
-  d.top <- (length(union(A, B)) - length(intersect(A, B)))/length(union(A, B))
-  d.bottom <- (length(union(C, D)) - length(intersect(C, D)))/length(union(C, D))
+  d.top <- 
+    (length(union(A, B)) - length(intersect(A, B)))/length(union(A, B))
+  d.bottom <-
+    (length(union(C, D)) - length(intersect(C, D)))/length(union(C, D))
     
   return((d.top + d.bottom)/2)
 }
 
-registerDoMC(7)  # number of CPU cores  
-
 
 # loop over all IDs and save the median of the distance
-comp.dist.median <- foreach(variable = 1:length(IDs$Image_Metadata_BROAD_ID), .combine=cbind) %dopar% {
+comp.dist.median <- foreach(i = 1:length(IDs$Metadata_broad_sample), .combine=cbind) %dopar% {
 
   #filtering to choose only for one compound
-  comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% IDs$Image_Metadata_BROAD_ID[variable])
-  comp <- comp[,pf$feat_cols]
+  comp <-
+    filter(profiles, Metadata_broad_sample %in% IDs$Metadata_broad_sample[i])
+  comp <-
+    comp[, variables] %>%
+    as.matrix()
 
   # distance of the features
-  comp.dist <- lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
-                                                     unlist)) %>% do.call(rbind, .)
+  comp.dist <-
+    lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
+                                          unlist)) %>%
+    do.call(rbind, .)
   
   # save median of the correlation
-  comp.dist.median <- median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE)
+  comp.dist.median <- 
+    median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE)
 
 }
 
 hist(comp.dist.median,
      main="Histogram for Median Replicate Distance",
-     xlab="Median Replicate Distance", xlim = range(0, 1))
+     xlab="Median Replicate Distance", 
+     xlim = range(0, 1))
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
@@ -187,35 +239,48 @@ Select randomly 4 replicates each coming from a different compound and calculate
 Repeat this N times to get a distribution.
 Finally estimate a threshold (5th percentile) to filter out compounds with poor replicate distance.
 
-```{r replicate distance}
+```{r replicate distance parallel}
 start.time <- Sys.time()
 
-# vector of the median of non replicate distance
-random.replicate.dist.median <- c()
+# set seed for reproducibility
+set.seed(42)
+
+# random sequence for reproducibility
+a <- sample(1:10000, N, replace=F)
 
 # loop over N times to get a distribution
-for (i in 1:N){
+random.replicate.dist.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
+  # set seed according to random sequence
+  set.seed(a[i])
+  
   # group by IDs
   # sample fixed number per group -> choose 4 replicates randomly from different group
-  random.replicate <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% sample_n(1, replace = FALSE) %>% ungroup(random.replicate)
+  random.replicate <- 
+    profiles %>% 
+    group_by(Metadata_broad_sample) %>% 
+    sample_n(1, replace = FALSE) %>% 
+    ungroup(random.replicate)
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
   
-  comp <- as.data.frame(random.replicate[,pf$feat_cols])
+  comp <- random.replicate[,variables] %>% as.matrix()
   
   # distance of the features
-  comp.dist <- lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
-                                                     unlist)) %>% do.call(rbind, .)
+  comp.dist <- 
+    lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
+                                                     unlist)) %>% 
+    do.call(rbind, .)
   
   # median of the non replicate distance
-  random.replicate.dist.median <- c(random.replicate.dist.median, median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE))
+  random.replicate.dist.median <- median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE)
   
 }
 
 # histogram plot
 hist(random.replicate.dist.median,
      main="Histogram for Non Replicate Median Distance",
-     xlab="Non Replicate Median Distance", xlim = range(0, 1))
+     xlab="Non Replicate Median Distance", 
+     xlim = range(0, 1))
 
 # threshold to determine if can reject H0
 thres <- quantile(random.replicate.dist.median, .05)
@@ -238,7 +303,7 @@ inds <- which(comp.dist.median < thres)
 hit.select <- comp.dist.median[inds]
 
 # find component that are hit selected
-hit.select.IDs <- IDs$Image_Metadata_BROAD_ID[inds]
+hit.select.IDs <- IDs$Metadata_broad_sample[inds]
 
 # ratio of strong median replicate correlation
 high.median.dist <- length(hit.select)/length(comp.dist.median)
@@ -279,8 +344,10 @@ print(high.median.dist)
 
 ```{r output data}
 # select high median correlation replicate 
-pf$data <- filter(pf$data, Image_Metadata_BROAD_ID %in% hit.select.IDs)
+profiles %<>% 
+  filter(Metadata_broad_sample %in% hit.select.IDs)
 
-saveRDS(pf, "../input/Pf_Gustafsdottir_hitSelection_distJ_featSel_30.rds")
+profiles %>%
+  write_csv("../../input/BBBC022_2013_sel_feat_hit_sel_30.csv")
 
 ```

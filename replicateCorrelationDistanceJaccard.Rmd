@@ -121,7 +121,7 @@ dim(IDs)
 ## Distance of the data
 
 Calculate the distance of the replicate for each compound.
-With features selection, computation time goes from ~15 minutes (~ 4 mins with parallelization) to ~5 minutes (~ 1.4 with parallelization).
+With features selection, computation time goes from ~15 minutes (~ 4 mins with parallelization ~ 25 secs with as.matrix) to ~5 minutes (~ 1.4 with parallelization ~ 10 seconds with as.matrix).
 
 ```{r distance in parallel}
 start.time <- Sys.time()
@@ -180,55 +180,6 @@ time.taken <- end.time - start.time
 time.taken # 1.4 minutes
 ```
 
-```{r distance, include=FALSE, eval=FALSE}
-start.time <- Sys.time()
-
-# function to calculate the distance between two sets
-distJaccard <- function(x, y){
-  # 4 sets: n.feat first and n.feat lasts features
-  x.sort <- sort(x)
-  y.sort <- sort(y)
-  
-  A <- names(x.sort[1:n.feat])
-  B <- names(y.sort[1:n.feat])
-  
-  # sorting each time
-  C <- names(x.sort[seq.int(to = length(x.sort), length.out = n.feat)])
-  D <- names(y.sort[seq.int(to = length(x.sort), length.out = n.feat)])
-  
-  d.top <- (length(union(A, B)) - length(intersect(A, B)))/length(union(A, B))
-  d.bottom <- (length(union(C, D)) - length(intersect(C, D)))/length(union(C, D))
-    
-  return((d.top + d.bottom)/2)
-}
-
-comp.dist.median <- c()
-# loop over all IDs
-for (variable in IDs$Image_Metadata_BROAD_ID){
-  #filtering to choose only for one compound
-  comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% variable)
-  comp <- comp[,pf$feat_cols]
-  
-  # distance of the features
-  comp.dist <- lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
-                                                     unlist)) %>% do.call(rbind, .)
-  
-  # median of the distances
-  comp.dist.median <- c(comp.dist.median, median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE))
-}
-
-hist(comp.dist.median,
-     main="Histogram for Median Replicate Distance",
-     xlab="Median Replicate Distance", xlim = range(0, 1))
-
-end.time <- Sys.time()
-time.taken <- end.time - start.time
-time.taken
-
-# 12 minutes with 1 time sorting and seq.int
-
-```
-
 
 ## Thresholding of poor replicate distance
 
@@ -263,7 +214,8 @@ random.replicate.dist.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
   
-  comp <- random.replicate[,variables] %>% as.matrix()
+  comp <- random.replicate[,variables] %>% 
+    as.matrix()
   
   # distance of the features
   comp.dist <- 
@@ -286,7 +238,7 @@ hist(random.replicate.dist.median,
 thres <- quantile(random.replicate.dist.median, .05)
 print(thres)
 
-end.time <- Sys.time()
+end.time <- Sys.time() # 2.95 mins (without feature selection)
 time.taken <- end.time - start.time
 time.taken
 ```
@@ -316,13 +268,11 @@ print(high.median.dist)
 
 |  Method   | Pearson | Spearman | Kendall | Euclidean | Maximum | Manhattan | Distance based on Jaccard | Pearson with feat. sel |
 | --------- | ------- | -------- | ------- | --------- | ------- | --------- | ------------------------- | ---------------------- |
-| N = 1000  | 0.6031  |          |         |           |         |           |                           |                        |
-| N = 2000  | 0.5862  |          |         |           |         |           |                           |                        |
-| N = 3000  | 0.5875  |          |         |           |         |           |                           |                        |
-| N = 4000  | 0.5950  |          |         |           |         |           |                           |                        |
-| N = 5000  | 0.5944  | 0.5550   | 0.5668  | 0.4606    | 0.3612  | 0.4875    | ~ 0.6                     | 0.5906                 |
-| N = 8000  | 0.5943  |          |         |           |         |           |                           | 0.5843                 |
-| N = 10000 | 0.5925  |          |         |           |         |           |                           |                        |
+| N = 1000  | 0.5469  |          |         |           |         |           |                           |                        |
+| N = 3000  | 0.5369  |          |         |           |         |           |                           |                        |
+| N = 5000  | 0.5287  | 0.4906   | 0.4944  | 0.    | 0.  | 0.    | ~ 0.55                     | 0.                 |
+| N = 8000  | 0.  |          |         |           |         |           |                           | 0.                |
+| N = 10000 | 0.  |          |         |           |         |           |                           |                        |
 
 
 - Difference between Pearson and Spearman correlation seem not to be very significant (no statistical test was performed).
@@ -332,13 +282,15 @@ print(high.median.dist)
 
 | Dist. with Jaccard  | sample size N = 5000                  |
 | ------------------- | ------------------------------------- |
-| without feat. sel.  | 0.6338   (nb of features in set = 50) |
-| without feat. sel.  | 0.6581  (nb of features in set = 100) |
-| with feat. sel.     | 0.6188   (nb of features in set = 50) |
-| with feat. sel.     | 0.6300   (nb of features in set = 40) |
-| with feat. sel.     | 0.6319   (nb of features in set = 30) |
-| with feat. sel.     | 0.5863   (nb of features in set = 20) |
-| with feat. sel.     | 0.5081   (nb of features in set = 10) |
+| without feat. sel.  | 0.5063  (nb of features in set = 100) |
+| without feat. sel.  | 0.5456   (nb of features in set = 50) |
+| without feat. sel.  | 0.5638   (nb of features in set = 30) |
+| without feat. sel.  | 0.5463   (nb of features in set = 10) |
+| with feat. sel.     | 0.5375   (nb of features in set = 50) |
+| with feat. sel.     | 0.5413   (nb of features in set = 40) |
+| with feat. sel.     | 0.5269   (nb of features in set = 30) |
+| with feat. sel.     | 0.5368   (nb of features in set = 20) |
+| with feat. sel.     | 0.5381   (nb of features in set = 10) |
 
 ## Saving data
 

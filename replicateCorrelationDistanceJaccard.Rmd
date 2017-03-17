@@ -300,6 +300,6 @@ profiles %<>%
   filter(Metadata_broad_sample %in% hit.select.IDs)
 
 profiles %>%
-  write_csv("../../input/BBBC022_2013_sel_feat_hit_sel_30.csv")
+  write_csv("../../input/BBBC022_2013/BBBC022_2013_sel_feat_hit_sel_30.csv")
 
 ```

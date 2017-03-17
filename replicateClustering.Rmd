@@ -19,15 +19,25 @@ Each compound (938 different) has 4 replicates.
 
 ```{r setup, include=FALSE}
 # all usefull libraries
+library(magrittr)
 library(dplyr)
 library(ggplot2)
 library(reshape2)
+library(foreach)
+library(doMC)
+library(stringr)
+library(tidyverse)
 ```
 
-```{r import data}
-# import data
-pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection_pearsonCorr.rds")
+```{r import data with feature selection, message=FALSE}
+profiles <- 
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_feat_sel_hit_sel_pearson.csv")) # 7680x(nfeat+metadata)
 
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_") # metadata
 ```
 
 ## Summary of the compound
@@ -35,6 +45,43 @@ pf <- readRDS("../input/Pf_Gustafsdottir_hitSelection_pearsonCorr.rds")
 Do the average along replicates.
 
 ```{r compound summary}
+# find the different compounds
+IDs <- distinct(profiles, Metadata_broad_sample)
+dim(IDs)
+
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+map.names <-
+  profiles %>%
+  dplyr::select(one_of(c("Metadata_broad_sample","Metadata_compound_name"))) %>%
+  unique %>%
+  mutate_if(is.factor, as.character) %>%
+  as.data.frame()
+rownames(map.names) <- map.names$Metadata_broad_sample
+
+
+# average along replicate (keep only id and variables)
+sum.comp <-
+  cbind(profiles[,"Metadata_broad_sample"], profiles[,variables]) %>%
+  group_by(Metadata_broad_sample) %>%
+  summarise_each(funs(mean(., na.rm=TRUE)))
+
+# add column of compound and convert tu uppercase (because some compounds same name but in lower/upper case)
+sum.comp %<>%
+  dplyr::left_join(., map.names, by = "Metadata_broad_sample") %>% 
+  mutate_if(is.character, funs(toupper))
+dim(sum.comp)
+
+# keep only one componment (first one)
+sum.comp %<>%
+  group_by(Metadata_compound_name) %>%
+  slice(1) %>%
+  ungroup
+dim(sum.comp)
+
+```
+
+
+```{r compound summary, eval=FALSE}
 # find the different compounds
 IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
 dim(IDs)
@@ -70,7 +117,11 @@ Use the agglomerative clustering with the average linkage function.
 
 ```{r clustering}
 # correlation compound-compound
-cor.comp <- cor(t(sum.comp[, !names(sum.comp) %in% c("Image_Metadata_BROAD_ID", "Image_Metadata_SOURCE_COMPOUND_NAME")]))
+cor.comp <-
+  sum.comp[,variables] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
 
 # metric for clustering: 1 - correlation
 met.clust <- as.dist(1 - cor.comp)
@@ -123,13 +174,24 @@ for ( h in height.interval ){
 mav <- function(x,n=5){stats::filter(x, rep(1/n,n), sides=2)}
 
 h.stability.mav <- mav(h.stability,n = 4)
-plot(height.interval, h.stability, type = "b", col = "blue", xlab = "Height threshold", ylab = "Stability")
-lines(height.interval, h.stability.mav, type = "l", col = "red")
+plot(height.interval, 
+     h.stability,
+     type = "b",
+     col = "blue",
+     xlab = "Height threshold",
+     ylab = "Stability")
+lines(height.interval,
+      h.stability.mav,
+      type = "l",
+      col = "red")
 
 # find the threshold where the cut will be applied
 thres <- height.interval[min(which(h.stability >= 0.97))]
 abline(v=thres)
-legend("bottomright", c("Stability", "Moving average", "Threshold"), lty=c(1,1,1), col=c("blue","red", "black"))
+legend("bottomright", 
+       c("Stability", "Moving average", "Threshold"),
+       lty=c(1,1,1), 
+       col=c("blue","red", "black"))
 ```
 
 ## Dendrogram of the cluters of the compounds
@@ -146,7 +208,9 @@ rect.hclust(clust.res, h = thres, border = "red")
 
 ```{r clusters}
 # find the cluster for each compound
-sum.comp.clust <- sum.comp %>% mutate(cluster = cutree(clust.res, h = thres))
+sum.comp.clust <- 
+  sum.comp %>%
+  mutate(cluster = cutree(clust.res, h = thres))
 
 ```
 
@@ -154,26 +218,65 @@ sum.comp.clust <- sum.comp %>% mutate(cluster = cutree(clust.res, h = thres))
 
 ```{r import MOAs}
 # import MOAs data
-moa <- read.csv("../input/MOAs.csv", na.strings = c("", "NA")) %>% mutate_if(is.factor, as.character) %>% plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) %>%
+  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
 # compounds name to upper case
-moa$Image_Metadata_SOURCE_COMPOUND_NAME <- lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>% unlist
-moa <- moa %>% group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>% slice(1) %>% ungroup
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
+  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
+  unlist
+moa %<>% 
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
 
 
 # join moa data to cluster data 
-final.sum.comp.clust <- sum.comp.clust %>% select(Image_Metadata_SOURCE_COMPOUND_NAME, cluster) %>% dplyr::left_join(., moa, by = "Image_Metadata_SOURCE_COMPOUND_NAME") 
-dim(final.sum.comp.clust)
+final.sum.comp.clust <-
+  sum.comp.clust %>%
+  select(Image_Metadata_SOURCE_COMPOUND_NAME, cluster) %>%
+  dplyr::left_join(., moa, by = "Image_Metadata_SOURCE_COMPOUND_NAME") %>%
+  dim()
 # remove row where MOA is NA
-final.sum.comp.clust.moa <- final.sum.comp.clust[complete.cases(final.sum.comp.clust[,"MOA"]),]
-dim(final.sum.comp.clust.moa)
+final.sum.comp.clust.moa <-
+  final.sum.comp.clust[complete.cases(final.sum.comp.clust[,"MOA"]),] %>%
+  dim()
 
 # select only the MOA and the cluster column
-df.clust.moa <- final.sum.comp.clust.moa %>% select(cluster, MOA)
+df.clust.moa <-
+  final.sum.comp.clust.moa %>% 
+  select(cluster, MOA)
 
 
 knitr::kable(final.sum.comp.clust.moa, caption = "Clustering of components with associated MOAs")
 
 ```
+
+Separate the MOAs if there are multiple for one compound.
+
+```{r moa}
+start.time <- Sys.time()
+
+for (i in 1:length(final.sum.comp.clust.moa)){
+  # if there are more than 1 moa associated
+  if (str_detect(final.sum.comp.clust.moa$MOA[i], ",")){
+    t1 <- str_trim(str_split(final.sum.comp.clust.moa$MOA[i], ",")[[1]])
+    final.sum.comp.clust.moa$MOA[i] <- t1[1]
+    new.row <- final.sum.comp.clust.moa[i]
+    new.row$MOA <- t1[2]
+    final.sum.comp.clust.moa <- rbind(final.sum.comp.clust.moa, new.row)
+  }
+  
+}
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
+
+```
+
+
 
 ## Fisher's exact test
 
@@ -192,14 +295,23 @@ knitr::kable(final.sum.comp.clust.moa, caption = "Clustering of components with 
 moa.mat <- outer(df.clust.moa$MOA, df.clust.moa$MOA, function(x, y) x==y)
 clust.mat <- outer(df.clust.moa$cluster, df.clust.moa$cluster, function(x, y) x==y)
 # transform into a vector with the indices and combine both moa and cluster information together, keep only the upper triangle of the matrix 
-tmp1 <- melt(moa.mat) %>% plyr::rename(c("value" = "same.moa"))
+tmp1 <- melt(moa.mat) %>%
+  plyr::rename(c("value" = "same.moa"))
 tmp2 <- melt(clust.mat)
 tmp1$same.clust <- tmp2$value
-tmp1 <- tmp1 %>% filter(., Var1 < Var2)
+tmp1 %<>% filter(Var1 < Var2)
 
 # contingency table
-contingency.table <- tmp1 %>% group_by(same.moa, same.clust) %>% summarise(cnt = n()) %>% xtabs(cnt ~ same.moa+same.clust, data = .)
-contingency.mat <- matrix(c(contingency.table[2,2], contingency.table[2,1], contingency.table[1,2], contingency.table[1,1]), nrow = 2, ncol = 2, byrow = TRUE)
+contingency.table <- 
+  tmp1 %>%
+  group_by(same.moa, same.clust) %>%
+  summarise(cnt = n()) %>%
+  xtabs(cnt ~ same.moa+same.clust, data = .)
+contingency.mat <-
+  matrix(c(contingency.table[2,2], contingency.table[2,1], contingency.table[1,2], contingency.table[1,1]), 
+         nrow = 2, 
+         ncol = 2, 
+         byrow = TRUE)
 
 contingency.table
 

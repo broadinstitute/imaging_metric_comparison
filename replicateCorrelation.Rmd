@@ -27,7 +27,7 @@ library(stringr)
 library(tidyverse)
 ```
 
-```{r import data with feature selection, message=FALSE, eval=FALSE}
+```{r import data with feature selection, message=FALSE}
 profiles <- 
   readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat.csv")) # 7680x(nfeat+metadata)
 
@@ -42,7 +42,7 @@ profiles %<>%
   filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
 ```
 
-```{r import data no feature selection, message=FALSE}
+```{r import data no feature selection, message=FALSE, eval=FALSE}
 profiles <- 
   list.files("../../backend/BBBC022_2013/", 
           pattern = "*_normalized.csv",
@@ -254,7 +254,7 @@ profiles %<>%
   filter(Metadata_broad_sample %in% hit.select.IDs)
 
 profiles %>%
-  write_csv("../../input/BBBC022_2013_hit_sel_pearson.csv")
+  write_csv("../../input/BBBC022_2013_feat_sel_hit_sel_pearson.csv")
 
 ```
 

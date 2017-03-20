@@ -77,6 +77,8 @@ profiles %<>%
     operation = "correlation_threshold"
   )
 
+#%>%filter(Metadata_pert_type == "control"),
+
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
 

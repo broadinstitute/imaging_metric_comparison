@@ -42,9 +42,9 @@ library(tidyverse)
 ```
 
 
-```{r import data with feature selection, message=FALSE, eval=FALSE}
+```{r import data with feature selection, message=FALSE}
 profiles <- 
-  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat.csv")) # 7680x(nfeat+metadata)
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat_wrong_trt.csv")) # 7680x(nfeat+metadata)
 
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
@@ -57,7 +57,7 @@ profiles %<>%
   filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
 ```
 
-```{r import data no feature selection, message=FALSE}
+```{r import data no feature selection, message=FALSE, eval=FALSE}
 profiles <- 
   list.files("../../backend/BBBC022_2013/", 
           pattern = "*_normalized.csv",
@@ -104,7 +104,7 @@ set.seed(42)
 registerDoMC(7)
 
 # number of features to take
-n.feat <- 50
+n.feat <- 30
 ```
 
 ## Separation of data
@@ -300,6 +300,6 @@ profiles %<>%
   filter(Metadata_broad_sample %in% hit.select.IDs)
 
 profiles %>%
-  write_csv("../../input/BBBC022_2013/BBBC022_2013_sel_feat_hit_sel_30.csv")
+  write_csv("../../input/BBBC022_2013/Hit_Jaccard_feat_sel_trt.csv")
 
 ```

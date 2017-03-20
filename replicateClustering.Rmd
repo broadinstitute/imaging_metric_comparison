@@ -31,7 +31,7 @@ library(tidyverse)
 
 ```{r import data with feature selection, message=FALSE}
 profiles <- 
-  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_hit_sel_pearson.csv")) # 7680x(nfeat+metadata)
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "Hit_Jaccard_feat_sel_ctrl.csv")) # 7680x(nfeat+metadata)
 
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
@@ -81,7 +81,7 @@ dim(sum.comp)
 ```
 
 
-```{r compound summary, eval=FALSE}
+```{r compound summary ol, eval=FALSE}
 # find the different compounds
 IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
 dim(IDs)
@@ -206,7 +206,7 @@ rect.hclust(clust.res, h = thres, border = "red")
 
 ## Extract names for each clusters
 
-```{r clusters}
+```{r clusters compounds}
 # find the cluster for each compound
 sum.comp.clust <- 
   sum.comp %>%
@@ -250,13 +250,13 @@ df.clust.moa <-
 dim(df.clust.moa)
 
 
-knitr::kable(final.sum.comp.clust.moa, caption = "Clustering of components with associated MOAs")
+#knitr::kable(final.sum.comp.clust.moa, caption = "Clustering of components with associated MOAs")
 
 ```
 
 Separate the MOAs if there are multiple for one compound.
 
-```{r moa}
+```{r moa compound}
 start.time <- Sys.time()
 
 for (i in 1:dim(df.clust.moa)[1]){
@@ -278,7 +278,7 @@ time.taken
 ```
 
 Solve the problem of the multiple moa for same compound
-```{r}
+```{r moa}
 # remove row where MOA is NA
 moa.ext <-
   moa[complete.cases(moa[,"MOA"]),]

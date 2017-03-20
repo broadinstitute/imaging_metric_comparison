@@ -359,14 +359,18 @@ final.sum <-
   group_by(cluster,MOA) %>%
   tally(sort = TRUE)
 
-moa.ext %>% dplyr::select(MOA, Metadata_compound_name) %>% 
+final <-
+  moa.ext %>% 
+  dplyr::select(MOA, Metadata_compound_name) %>% 
   dplyr::group_by(MOA) %>%
   dplyr::summarise(n.cmpd = n()) %>% 
   dplyr::right_join(., final.sum, by = "MOA") %>% 
-  dplyr::mutate(contribute = n/n.cmpd) %>%
-  View
-final.sum  
-  
+  dplyr::filter(n > 1) %>% #remove column where just one moa (meaning no pairs)
+  dplyr::mutate(contribute = n/n.cmpd)
+#final.sum  
+
+knitr::kable(final, caption = "Number of same MOAs in a same cluster compared to the number of total compounds for a specific MOA ")
+
 ```
 
 

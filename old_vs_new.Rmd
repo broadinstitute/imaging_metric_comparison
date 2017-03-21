@@ -1,0 +1,84 @@
+---
+title: "Old versus New dataset"
+output: html_document
+---
+
+The data analysis was originally done with an old version of the data. Then the same analysis was adapated to the same data but compatible with cytominer.
+The results of the hit selection were different, around 10% smaller, we thought that one possibility might be that the features are not the same. So the next step was to look at the clustering of the compound related to an MOA. The odd ratio was also really smaller for the new dataset around 1.4 instead of 2.2. This lead us to some questioning whether the new data had some issue.
+This markdown was created to see the difference between the old dataset and the new dataset.
+We found indeed that they are not the same. The normalization seems to be different in both case.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# all usefull libraries
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(foreach)
+library(doMC)
+library(stringr)
+library(tidyverse)
+```
+
+## Old vs New
+Compare the old and the new dataset, since it seems not to be the same.
+
+```{r import old data}
+
+data.old <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Pf_Gustafsdottir.rds"))
+
+# Remove the negative control from the data
+data.old$data %<>%
+  filter(!Image_Metadata_BROAD_ID %in% "")
+data.old$data$Well %<>% as.character()
+```
+
+```{r import new data, message=FALSE}
+
+data.new <- 
+  list.files("../../backend/BBBC022_2013/", 
+          pattern = "*_normalized.csv",
+          recursive = T,
+          full.names = T) %>%
+  map_df(read_csv)
+
+dim(data.new)
+
+variables <-
+  names(data.new) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+metadata <-
+  names(data.new) %>% str_subset("^Metadata_")
+  
+data.new %<>%
+  cytominer::select(
+    sample = 
+      data.new %>% 
+      filter(Metadata_pert_type == "control"),
+    variables = variables,
+    operation = "variance_threshold"
+  )
+
+variables <-
+  names(data.new) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+# Remove the negative control (DMSO) from the data
+data.new %<>% 
+  filter(!Metadata_broad_sample %in% "DMSO") # 6400xnfeat
+
+```
+
+Join the data together
+
+```{r joining data}
+
+jn <-
+  full_join(data.old$data, data.new, by=c("Plate"="Metadata_Plate", "Well"="Metadata_Well"))
+
+plot(jn$Nuclei_AreaShape_Area.x, jn$Nuclei_AreaShape_Area.y)
+```
+
+
+
+
+

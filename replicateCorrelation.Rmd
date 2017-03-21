@@ -78,7 +78,7 @@ profiles %<>%
 
 ```{r import data, eval=FALSE}
 # import data
-pf <- readRDS("../input/Pf_Gustafsdottir.rds") # 7680x803
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Pf_Gustafsdottir.rds")) # 7680x803
 
 # Remove the negative control from the data
 pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803

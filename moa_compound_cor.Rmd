@@ -1,0 +1,160 @@
+---
+title: "MOA vs Correlated Compound Pairs"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(foreach)
+library(doMC)
+library(stringr)
+library(tidyverse)
+```
+
+Using the clustering method, has one issue because we have to define a threshold that is difficult to set.
+
+In this markdown, another method is defined.
+
+The following table will be defined:
+
+- same MOA
+- different MOA
+
+versus
+
+- top 5% Correlated Compound pairs
+- rest
+
+```{r import new data, message=FALSE}
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Hit_pearson_old.rds"))
+
+profiles <- pf$data
+
+variables <- pf$feat_cols
+```
+
+
+## Summary of the compound
+
+Do the average along replicates.
+
+```{r compound summary}
+# find the different compounds
+IDs <- distinct(profiles, Image_Metadata_BROAD_ID)
+dim(IDs)
+
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+map.names <-
+  profiles %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>%
+  unique %>%
+  mutate_if(is.factor, as.character) %>%
+  as.data.frame()
+rownames(map.names) <- map.names$Image_Metadata_BROAD_ID
+#map.names %<>% select(Image_Metadata_SOURCE_COMPOUND_NAME)
+
+
+# average along replicate (keep only id and variables)
+sum.comp <- 
+  pf$data %>% 
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>%
+  mutate_if(is.factor, as.character)
+
+# add column of compound and convert tu uppercase (because some compounds same name but in lower/upper case)
+sum.comp %<>%
+  dplyr::left_join(., map.names, by = "Image_Metadata_BROAD_ID") %>% 
+  mutate_if(is.character, funs(toupper))
+dim(sum.comp)
+
+# keep only one componment (first one)
+sum.comp %<>%
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup %>%
+  as.data.frame()
+dim(sum.comp)
+
+row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
+```
+
+```{r}
+# correlation compound-compound
+cor.comp <-
+  sum.comp[, pf$feat_cols] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+
+corrplot::corrplot(cor.comp, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
+
+# extract upper part of the compound compound correlation matrix and sort
+ind <- which( upper.tri(cor.comp) , arr.ind = TRUE )
+
+cor.compound.pair <- 
+  data.frame(col = dimnames(cor.comp)[[2]][ind[,2]],
+             row = dimnames(cor.comp)[[1]][ind[,1]],
+             val = cor.comp[ind]) %>%
+  dplyr::arrange(desc(val))
+
+tmp <- quantile(cor.compound.pair$val, .95)
+
+
+
+
+```
+
+
+## MOA data
+
+```{r import MOAs}
+# import MOAs data
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) %>%
+  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
+# compounds name to upper case
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
+  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
+  unlist
+moa %<>% 
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+
+# duplicate rows when multiple MOAs for one sample
+for (i in 1:dim(moa)[1]){
+  # if there are more than 1 moa associated
+  if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
+    moa$MOA[i] <- t1[1]
+    new.row <- moa[i,]
+    new.row$MOA <- t1[2]
+    moa <- rbind(moa, new.row)
+  }
+  
+}
+dim(moa)
+
+```
+
+
+```{r}
+
+tmp <- moa %>%
+  dplyr::left_join(map.names, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+dim(tmp)
+# binary indicator matrix of ID vs MOA 
+test1 <- tmp %>%
+  select(MOA, Image_Metadata_BROAD_ID) %>%
+  as.data.frame.matrix(table(.))
+
+```
+
+
+
+

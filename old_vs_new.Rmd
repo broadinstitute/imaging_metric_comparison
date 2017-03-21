@@ -79,6 +79,6 @@ plot(jn$Nuclei_AreaShape_Area.x, jn$Nuclei_AreaShape_Area.y)
 ```
 
 
-
+We expected a line and we can see that it is not the case. Also the scale are not the same...
 
 

@@ -29,9 +29,9 @@ library(stringr)
 library(tidyverse)
 ```
 
-```{r import data with feature selection, message=FALSE}
+```{r import new data, message=FALSE}
 profiles <- 
-  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "Hit_Jaccard_feat_sel_ctrl.csv")) # 7680x(nfeat+metadata)
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "Hit_Pearson.csv")) # 7680x(nfeat+metadata)
 
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
@@ -87,20 +87,34 @@ IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)
 dim(IDs)
 
 # mapping IDs-Compounds: give access to the compound knowing the IDs
-map.names <- pf$data %>% dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% unique %>% mutate_if(is.factor, as.character)
+map.names <- 
+  pf$data %>% 
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>%
+  unique %>%
+  mutate_if(is.factor, as.character)
 rownames(map.names) <- map.names$Image_Metadata_BROAD_ID
 
 
 # average along replicate
-sum.comp <- pf$data %>% group_by(Image_Metadata_BROAD_ID) %>% summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% mutate_if(is.factor, as.character)
+sum.comp <- 
+  pf$data %>% 
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>%
+  mutate_if(is.factor, as.character)
 
 # add column of compound and convert tu uppercase (because some compounds same name but in lower/upper case)
-sum.comp <- dplyr::left_join(sum.comp, map.names, by = "Image_Metadata_BROAD_ID") %>% mutate_if(is.character, funs(toupper))
+sum.comp <- 
+  dplyr::left_join(sum.comp, map.names, by = "Image_Metadata_BROAD_ID") %>%
+  mutate_if(is.character, funs(toupper))
 
 dim(sum.comp)
 
 # keep only one componment (first one)
-sum.comp <- sum.comp %>% group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>% slice(1) %>% ungroup
+sum.comp <- 
+  sum.comp %>% 
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>% 
+  slice(1) %>%
+  ungroup
 
 dim(sum.comp)
 
@@ -186,6 +200,7 @@ lines(height.interval,
       col = "red")
 
 # find the threshold where the cut will be applied
+numClust <- 20
 thres <- height.interval[min(which(h.stability >= 0.97))]
 abline(v=thres)
 legend("bottomright", 
@@ -199,7 +214,7 @@ Plotting the dendrogram according to the threshold
 
 ```{r dendrogram}
 plot(clust.res, cex = 0.01, hang = -1)
-rect.hclust(clust.res, h = thres, border = "red")
+rect.hclust(clust.res, k = numClust, border = "red")
 
 ```
 
@@ -210,7 +225,7 @@ rect.hclust(clust.res, h = thres, border = "red")
 # find the cluster for each compound
 sum.comp.clust <- 
   sum.comp %>%
-  mutate(cluster = cutree(clust.res, h = thres))
+  mutate(cluster = cutree(clust.res, k = numClust))
 
 ```
 

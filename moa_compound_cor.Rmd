@@ -50,25 +50,25 @@ dim(IDs)
 # mapping IDs-Compounds: give access to the compound knowing the IDs
 map.names <-
   profiles %>%
-  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>%
-  unique %>%
-  mutate_if(is.factor, as.character) %>%
-  as.data.frame()
-rownames(map.names) <- map.names$Image_Metadata_BROAD_ID
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  unique %>% # keep unique rows, one column can have same value
+  mutate_if(is.factor, as.character) %>% # if is a factor transform into a character
+  as.data.frame() # be sure it is a dataframe
+rownames(map.names) <- map.names$Image_Metadata_BROAD_ID # transform the names of the rows into the IDs
 #map.names %<>% select(Image_Metadata_SOURCE_COMPOUND_NAME)
 
 
 # average along replicate (keep only id and variables)
 sum.comp <- 
-  pf$data %>% 
+  profiles %>% 
   group_by(Image_Metadata_BROAD_ID) %>% 
-  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>%
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
   mutate_if(is.factor, as.character)
 
 # add column of compound and convert tu uppercase (because some compounds same name but in lower/upper case)
 sum.comp %<>%
   dplyr::left_join(., map.names, by = "Image_Metadata_BROAD_ID") %>% 
-  mutate_if(is.character, funs(toupper))
+  mutate_if(is.character, funs(toupper)) # same compound can be writen in upper and lower case and looks different
 dim(sum.comp)
 
 # keep only one componment (first one)
@@ -85,7 +85,7 @@ row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
 ```{r}
 # correlation compound-compound
 cor.comp <-
-  sum.comp[, pf$feat_cols] %>% 
+  sum.comp[, variables] %>% 
   as.matrix() %>%
   t() %>%
   cor()
@@ -93,7 +93,7 @@ cor.comp <-
 corrplot::corrplot(cor.comp, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
 
 # extract upper part of the compound compound correlation matrix and sort
-ind <- which( upper.tri(cor.comp) , arr.ind = TRUE )
+ind <- which( upper.tri(cor.comp) , arr.ind = TRUE ) # indices of the upper triangle of the correlation matrix
 
 cor.compound.pair <- 
   data.frame(col = dimnames(cor.comp)[[2]][ind[,2]],
@@ -101,7 +101,7 @@ cor.compound.pair <-
              val = cor.comp[ind]) %>%
   dplyr::arrange(desc(val))
 
-tmp <- quantile(cor.compound.pair$val, .95)
+quant <- quantile(cor.compound.pair$val, .95)
 
 
 
@@ -144,15 +144,49 @@ dim(moa)
 
 
 ```{r}
-
+# joining moa and compounds information
 tmp <- moa %>%
-  dplyr::left_join(map.names, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+  dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
 dim(tmp)
 # binary indicator matrix of ID vs MOA 
-test1 <- tmp %>%
-  select(MOA, Image_Metadata_BROAD_ID) %>%
-  as.data.frame.matrix(table(.))
+comp_vs_moa <- tmp %>%
+  select(MOA, Image_Metadata_BROAD_ID) 
+comp_vs_moa <-  as.matrix(as.data.frame.matrix(table(comp_vs_moa)))
 
+# number of moa in common for each ID pairs
+comp_vs_comp <-
+  t(comp_vs_moa)  %*% comp_vs_moa %>% # calculate matrix compound ID - compound ID relation
+  melt(.) %>% # transform matrix into column
+  filter(value > 0) %>% # filter value bigger than 0
+  filter(Var1 != Var2)
+
+cor.compound.pair %<>% 
+  mutate_if(is.factor, as.character) %>%
+  dplyr::left_join(., 
+                   mutate_if(comp_vs_comp, is.factor, as.character), 
+                   by = c("col" = "Var1", "row" = "Var2"))
+
+# replace NA with 0
+cor.compound.pair[is.na(cor.compound.pair)] <- 0
+
+top5 <- round(.05*dim(cor.compound.pair)[1])
+top5value <- cor.compound.pair$value[1:top5]
+rest95value <- cor.compound.pair$value[(top5+1):dim(cor.compound.pair)[1]]
+
+contingency.mat <-
+  matrix(c(sum(top5value), 
+           length(top5value[top5value==0]), 
+           sum(rest95value), 
+           length(rest95value[rest95value==0])), 
+         nrow = 2, 
+         ncol = 2, 
+         byrow = TRUE)
+
+rownames(contingency.mat) <- c("top 5%", "rest")
+colnames(contingency.mat) <- c("same moa", "diff moa")
+
+# fisher test
+fisher.test(contingency.mat, alternative = "greater")
 ```
 
 

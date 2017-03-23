@@ -27,17 +27,11 @@ library(stringr)
 library(tidyverse)
 ```
 
-```{r import data}
-# import data
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Pf_Gustafsdottir.rds")) # 7680x803
-
-# Remove the negative control from the data
-pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
-
-```
-
 ## Parameter
 ```{r parameter}
+# name of the data file
+filename <- "Pf_Gustafsdottir.rds"
+
 # method of correlation: "pearson", "kendall", "spearman"
 cor.method <- "pearson"
 # number of data to make the non replicate correlation
@@ -45,6 +39,16 @@ N <- 5000
 
 # seed for the reproducibility
 set.seed(42)
+```
+
+## Import data
+```{r import data}
+# import data
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", filename)) # 7680x803
+
+# Remove the negative control from the data
+pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
+
 ```
 
 ## Separation of data
@@ -87,7 +91,7 @@ comp.cor.median <- foreach(i = 1:length(IDs$Image_Metadata_BROAD_ID), .combine=c
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 22.55 secs instead of 1.179 minutes
+time.taken # 27.21 secs instead of 1.179 minutes
 
 hist(comp.cor.median,
      main="Histogram for Median Replicate Correlation",
@@ -97,7 +101,7 @@ hist(comp.cor.median,
 If the value is equal to 1 it means that it is changing in the same direction (total positive linear correlation). 
 0 means that they are unrelated (no linear correlation). 
 -1 means that they are opposite (total negative linear correlation).
-
+As expected for the replicate we can see that the distribution is bigger than 0 meaning that there are positively correlated.
 
 ## Thresholding of poor replicate correlation
 
@@ -128,14 +132,16 @@ random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
   random.replicate <- 
     pf$data %>% 
     group_by(Image_Metadata_BROAD_ID) %>% 
-    sample_n(1, replace = FALSE) %>% 
+    sample_n(1, replace = FALSE) %>% # choose randomly 1 sample for each group of IDs
     ungroup(random.replicate)
+  # choose randomly 4 samples each coming from a different group
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
+  # select only the features
   comp <- random.replicate[,pf$feat_cols] %>% 
     as.matrix()
   
-  # correlation of the features
+  # correlation of the features using the method defined in the parameter (pearson, spearman, kendall)
   random.replicate.cor <- cor(t(comp), method = cor.method)
   
   # median of the non replicate correlation
@@ -145,7 +151,7 @@ random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 4.44 mins
+time.taken # 1.35mins instead of 4.44 mins
 
 # histogram plot
 hist(random.replicate.cor.median,
@@ -156,6 +162,7 @@ hist(random.replicate.cor.median,
 thres <- quantile(random.replicate.cor.median, .95)
 print(thres)
 ```
+As expected the distribution is around 0. Meaning that the features does not show a linear correlation.
 
 ## Hit Selection
 
@@ -184,7 +191,12 @@ print(high.median.cor)
 pf$data %<>% 
   filter(Image_Metadata_BROAD_ID %in% hit.select.IDs)
 
+# save new dataset
 pf %>%
   saveRDS("../../input/BBBC022_2013/Hit_pearson_old.rds")
 
 ```
+
+
+Remark: depending on the random distribution, the number of compounds selected can vary. 
+Maybe should find a way to reach stabilization.

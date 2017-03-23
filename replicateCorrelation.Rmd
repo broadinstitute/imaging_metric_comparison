@@ -27,9 +27,27 @@ library(stringr)
 library(tidyverse)
 ```
 
+## Parameter
+```{r parameter}
+# name of the data file
+filename <- "BBBC022_2013_sel_feat.csv"
+
+# method of correlation: "pearson", "kendall", "spearman"
+cor.method <- "pearson"
+
+# number of data to make the non replicate correlation (random distribution)
+N <- 5000
+
+# seed for the reproducibility
+set.seed(42)
+
+```
+
+## Import data
 ```{r import data with feature selection, message=FALSE}
+# import data
 profiles <- 
-  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", "BBBC022_2013_sel_feat.csv")) # 7680x(nfeat+metadata)
+  readr::read_csv(file.path("..", "..", "input", "BBBC022_2013", filename)) # 7680x(nfeat+metadata)
 
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
@@ -58,6 +76,7 @@ variables <-
 metadata <-
   names(profiles) %>% str_subset("^Metadata_")
   
+# remove zero variance data
 profiles %<>%
   cytominer::select(
     sample = 
@@ -76,32 +95,10 @@ profiles %<>%
 
 ```
 
-```{r import data, eval=FALSE}
-# import data
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Pf_Gustafsdottir.rds")) # 7680x803
-
-# Remove the negative control from the data
-pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
-
-##
-#pf <- readRDS("../input/Pf_Gustafsdottir_sel_feat.rds")
-```
-
-## Parameter
-```{r parameter}
-# method of correlation: "pearson", "kendall", "spearman"
-cor.method <- "pearson"
-# number of data to make the non replicate correlation
-N <- 5000
-
-# seed for the reproducibility
-set.seed(42)
-```
-
 ## Separation of data
 
 Separation is made according to the compound that was added.
-Image_Metadata_BROAD_ID = gives the ID of the compound that was added.
+Metadata_broad_sample = gives the ID of the compound that was added.
 
 ```{r separation of data}
 # find the different compounds
@@ -123,24 +120,23 @@ registerDoMC(7)  # number of CPU cores
 comp.cor.median <- foreach(i = 1:length(IDs$Metadata_broad_sample), .combine=cbind) %dopar% {
 
   #filtering to choose only for one compound
-  #comp <- filter(pf$data, Image_Metadata_BROAD_ID %in% IDs$Image_Metadata_BROAD_ID[i])
   comp <-
     filter(profiles, Metadata_broad_sample %in% IDs$Metadata_broad_sample[i])
   comp <-
-    comp[, variables] %>%
+    comp[, variables] %>% # take only the features
     as.matrix()
 
-  # correlation of the features
+  # correlation of the features according to the method chosen in the parameter (pearson, spearman or kendall)
   comp.cor <- cor(t(comp), method = cor.method)
   
   # save median of the correlation
-  comp.cor.median <- median(comp.cor[lower.tri(comp.cor)],na.rm=TRUE) # 1600 values
+  comp.cor.median <- median(comp.cor[lower.tri(comp.cor)],na.rm=TRUE) 
 
 }
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 22.55 secs instead of 1.179 minutes
+time.taken # 6.44 secs instead of 1.179 minutes
 
 hist(comp.cor.median,
      main="Histogram for Median Replicate Correlation",
@@ -150,6 +146,7 @@ hist(comp.cor.median,
 If the value is equal to 1 it means that it is changing in the same direction (total positive linear correlation). 
 0 means that they are unrelated (no linear correlation). 
 -1 means that they are opposite (total negative linear correlation).
+As expected for the replicate we can see that the distribution is bigger than 0 meaning that there are positively correlated.
 
 
 ## Thresholding of poor replicate correlation
@@ -169,7 +166,7 @@ start.time <- Sys.time()
 set.seed(42)
 
 # random sequence for reproducibility
-a <- sample(1:10000, N, replace=F)
+a <- sample(1:10000, N, replace=FALSE)
 
 # loop over N times to get a distribution
 random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
@@ -181,14 +178,16 @@ random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
   random.replicate <- 
     profiles %>% 
     group_by(Metadata_broad_sample) %>% 
-    sample_n(1, replace = FALSE) %>% 
+    sample_n(1, replace = FALSE) %>% # choose randomly 1 sample for each group of IDs
     ungroup(random.replicate)
+  # choose randomly 4 samples each coming from a different group
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
+  # select only the features
   comp <- random.replicate[,variables] %>% 
     as.matrix()
   
-  # correlation of the features
+  # correlation of the features using the method defined in the parameter (pearson, spearman, kendall)
   random.replicate.cor <- cor(t(comp), method = cor.method)
   
   # median of the non replicate correlation
@@ -198,7 +197,7 @@ random.replicate.cor.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 4.44 mins
+time.taken # 2.01 mins
 
 # histogram plot
 hist(random.replicate.cor.median,
@@ -210,22 +209,23 @@ thres <- quantile(random.replicate.cor.median, .95)
 print(thres)
 ```
 
+As expected the distribution is around 0. Meaning that the features does not show a linear correlation.
+
 ## Hit Selection
 
 Select strong replicates correlation comparing with the 95th percentile of the Null Distribution.
 
 ```{r Hit Selection}
 # find indices of replicate median correlation > threshold
-inds <- which(comp.cor.median > thres) # 938 out of 1600
+inds <- which(comp.cor.median > thres) 
 
 # find values of the median that are hit selected
 hit.select <- comp.cor.median[inds]
 
 # find component that are hit selected
-#hit.select.IDs <- IDs$Image_Metadata_BROAD_ID[inds]
 hit.select.IDs <- IDs$Metadata_broad_sample[inds]
 
-# ratio of strong median replicate correlation
+# ratio of strong median replicate correlation (number of hit selected / total number of samples)
 high.median.cor <- length(hit.select)/length(comp.cor.median)
 print(high.median.cor)
 
@@ -234,7 +234,7 @@ print(high.median.cor)
 
 ## Results 
 
-For previous dataset
+For previous dataset (old version)
 
 |  Method   | Pearson | Spearman | Kendall | Euclidean | Maximum | Manhattan |
 | --------- | ------- | -------- | ------- | --------- | ------- | --------- |
@@ -243,7 +243,8 @@ For previous dataset
 | N = 10000 | 0.5850  | -------- | ------- | --------- | ------- | --------- |
 
 
-- Difference between Pearson and Spearman correlation seem not to be very significant (no statistical test was performed).
+- The best correlation method seems to be Pearson correlation metric.
+- The other correlation method are a little bit lower (Spearman and Kendall)
 - Distance method compared to correlation metric gives a lower ratio of hit selection (more or less 10% lower).
 
 ## Saving data
@@ -253,13 +254,14 @@ For previous dataset
 profiles %<>% 
   filter(Metadata_broad_sample %in% hit.select.IDs)
 
+# save new dataset
 profiles %>%
   write_csv("../../input/BBBC022_2013/Hit_pearson_feat_sel.csv")
 
 ```
 
 Remark: depending on the random distribution, the number of compounds selected can vary. 
-Should find a way to have stabilization.
+Maybe should find a way to reach stabilization.
 
 
 

@@ -10,17 +10,19 @@ The smaller the distance, the more correlated the replicates are.
 The distance is defined following the Jaccard distance, which calculate the dissimilarities between sample sets.
 The distance is defined as the mean of the distance between 4 sets. 
 
-A) 50 top features of component x
+A) n top features of component x
 
-B) 50 top features of component y
+B) n top features of component y
 
-C) 50 bottom features of component x
+C) n bottom features of component x
 
-D) 50 bottom features of component y
+D) n bottom features of component y
 
 $dist(x,y) = \frac{dist_J(A,B) + dist_J(C,D)}{2}$
 
 $dist_J(i,j) = \frac{|A \cup B| - |A \cap B|}{|A \cup B|}$ 
+
+where n is a parameter to be defined, representing the number of features in a particular set (A, B, C or D)
 
 ## Data
 

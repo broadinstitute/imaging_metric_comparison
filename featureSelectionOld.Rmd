@@ -1,0 +1,100 @@
+---
+title: "featureSelectionOld"
+output: html_document
+---
+
+This Markdown aims at doing feature selection. In this version, we use findCorrelation to remove the features that are too correlated.
+
+```{r libraries, include=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+## Data
+
+The input contains only the high median correlation compounds.
+The input data is a 3752 by 803 matrix.
+There are 3752 different observations and 799 features (extracted with CellProfiler).
+Each compound (938 different) has 4 replicates.
+
+```{r import data old, message=FALSE}
+set.seed(42)
+
+# name of the data file
+filename <- "Pf_Gustafsdottir.rds"
+
+# import data
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", filename))
+
+profiles <- pf$data
+
+dim(profiles)
+
+variables <- pf$feat_cols
+
+metadata <- pf$factor_cols
+  
+```
+
+## Feature Selection
+
+```{r correlation}
+# remove zero variance data
+profiles %<>%
+  cytominer::select(
+    sample = 
+      profiles %>% 
+      filter(Image_Metadata_BROAD_ID %in% ""),
+    variables = variables,
+    operation = "variance_threshold"
+  )
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+# correlation between features
+correlation <- 
+  profiles %>%
+  select(one_of(variables)) %>%
+  cor()
+
+corrplot::corrplot(correlation, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
+```
+
+
+```{r find correlation}
+# remove features that are too correlated (threshold of .9)
+profiles %<>%
+  cytominer::select(
+    sample = profiles,
+    variables = variables,
+    operation = "correlation_threshold"
+  )
+
+#%>%filter(Metadata_pert_type == "control"),
+
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+# plot of the correlation after features selection
+correlation <- 
+  profiles %>%
+  select(one_of(variables)) %>%
+  cor()
+
+corrplot::corrplot(correlation, tl.cex = 0.5, method = "color",  tl.pos="n", order = "hclust")
+
+dim(profiles)
+
+# saving the new dataset
+pf$data <- profiles
+pf$feat_cols <- variables
+
+pf %>%
+  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs.rds")
+```
+

@@ -23,7 +23,7 @@ The input data is a 3752 by 803 matrix.
 There are 3752 different observations and 799 features (extracted with CellProfiler).
 Each compound (938 different) has 4 replicates.
 
-```{r, message=FALSE}
+```{r import data, message=FALSE}
 set.seed(42)
 
 profiles <- 
@@ -46,8 +46,7 @@ metadata <-
 ## Feature Selection
 
 ```{r correlation}
-# correlation matrix featuresxfeatures
-
+# remove zero variance data
 profiles %<>%
   cytominer::select(
     sample = 
@@ -60,6 +59,7 @@ profiles %<>%
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
 
+# correlation between features
 correlation <- 
   profiles %>%
   select(one_of(variables)) %>%
@@ -70,6 +70,7 @@ corrplot::corrplot(correlation, tl.cex = 0.5, method = "color",  tl.pos="n", ord
 
 
 ```{r find correlation}
+# remove features that are too correlated (threshold of .9)
 profiles %<>%
   cytominer::select(
     sample = profiles,
@@ -82,6 +83,7 @@ profiles %<>%
 variables <-
   names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
 
+# plot of the correlation after features selection
 correlation <- 
   profiles %>%
   select(one_of(variables)) %>%
@@ -91,6 +93,7 @@ corrplot::corrplot(correlation, tl.cex = 0.5, method = "color",  tl.pos="n", ord
 
 dim(profiles)
 
+# saving the new dataset
 profiles %>%
   write_csv("../../input/BBBC022_2013_sel_feat.csv")
 ```

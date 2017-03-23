@@ -30,8 +30,8 @@ library(tidyverse)
 ## Parameter
 ```{r parameter}
 # name of the data file
-#filename <- "Pf_Gustafsdottir_fs.rds" 
-filename <- "Pf_Gustafsdottir.rds"
+filename <- "Pf_Gustafsdottir_fs.rds" 
+#filename <- "Pf_Gustafsdottir.rds"
 
 # method of correlation: "pearson", "kendall", "spearman"
 cor.method <- "pearson"

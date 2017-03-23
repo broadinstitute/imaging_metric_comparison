@@ -49,8 +49,6 @@ library(tidyverse)
 filename <- "Pf_Gustafsdottir_fs.rds" 
 #filename <- "Pf_Gustafsdottir.rds"
 
-# method of correlation: "pearson", "kendall", "spearman"
-cor.method <- "pearson"
 # number of data to make the non replicate correlation
 N <- 5000
 
@@ -145,7 +143,7 @@ hist(comp.dist.median,
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 1.4 minutes
+time.taken # 26 secs 
 ```
 
 
@@ -206,7 +204,7 @@ hist(random.replicate.dist.median,
 thres <- quantile(random.replicate.dist.median, .05)
 print(thres)
 
-end.time <- Sys.time() # 2.95 mins (without feature selection)
+end.time <- Sys.time() # 1.4 mins (without feature selection)
 time.taken <- end.time - start.time
 time.taken
 ```
@@ -269,7 +267,7 @@ pf$data %<>%
 
 # save new dataset
 pf %>%
-  saveRDS("../../input/BBBC022_2013/old/Hit_jaccard_fs_5944.csv")
+  saveRDS("../../input/BBBC022_2013/old/Hit_jaccard_30n_fs_6206.rds")
 
 
 ```

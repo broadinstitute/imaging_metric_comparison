@@ -29,8 +29,14 @@ library(stringr)
 library(tidyverse)
 ```
 
+## parameters
+```{r parameters}
+numClust <- 70
+set.seed(42)
+```
+
 ```{r import new data, message=FALSE}
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Hit_pearson_old.rds"))
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", "Hit_jaccard_50n_6225.rds"))
 ```
 
 ## Summary of the compound
@@ -92,8 +98,8 @@ plot(clust.res, cex = 0.01, hang = -1)
 ```
 
 ## stability around different threshold
-
-```{r stability}
+only use stability to find the threshold when using h and not k (k is the number of cluster)
+```{r stability, eval=FALSE}
 # Interval of threshold to find the optimal one
 height.interval <- seq(from = 0.2, to = 0.8, by = 0.01)
 epsilon <- 0.01
@@ -124,7 +130,6 @@ lines(height.interval,
       col = "red")
 
 # find the threshold where the cut will be applied
-numClust <- 20
 thres <- height.interval[min(which(h.stability >= 0.97))]
 abline(v=thres)
 legend("bottomright", 
@@ -287,6 +292,43 @@ fisher.test(contingency.mat, alternative = "greater")
 
 We expect an odds ratio > 1, which means that if we have the same MOA, there is a higher chance to capture the same cluster.
 Moreover we can see that a p-value smaller than 0.05 means that we reject H0.
+
+Table of the odds ratio for different metric when hit selecting
+
+note: fs = feature selection, k is the number of cluster, in () is the pvalue
+
+|  Method   | Pearson            | Pearson with fs    | Jaccard            | Jaccard with fs    |
+| --------- | ------------------ | ------------------ | ------------------ | ------------------ | 
+| k = 10    | 1.7464 (< 2.2e-16) | 1.3458 (3.423e-06) | 1.9353 (< 2.2e-16) | 1.3907 (1.596e-07) |
+| k = 20    | 2.1182 (< 2.2e-16) | 2.1693 (< 2.2e-16) | 1.8157 (< 2.2e-16) | 2.0729 (< 2.2e-16) |
+| k = 30    | 2.0963 (< 2.2e-16) | **2.4312** (< 2.2e-16) | 1.8492 (< 2.2e-16) | **2.3715** (< 2.2e-16) |
+| k = 40    | **2.3945** (< 2.2e-16) | 2.0285 (< 2.2e-16) | 1.8243 (< 2.2e-16) | 1.7745 (3.958e-14) |
+| k = 50    | 1.6212 (1.245e-09) | 1.5711 (7.347e-09) | 1.9550 (< 2.2e-16) | 1.7879 (2.299e-14) |
+| k = 60    | 1.5293 (1.498e-07) | 1.6907 (4.618e-11) | 1.9930 (< 2.2e-16) | 1.4759 (6.919e-07) |
+| k = 70    | 1.5307 (1.418e-07) | 1.7688 (7.66e-12)  | **2.5029** (< 2.2e-16) | 1.3822 (4.065e-05) |
+| k = 80    | 1.6172 (1.121e-08) | 1.7775 (5.26e-12)  | 2.1852 (< 2.2e-16) | 1.4949 (1.555e-06) |
+| k = 90    | 1.6206 (1.047e-08) | 1.4831 (4.81e-06)  | 2.1911 (< 2.2e-16) | 1.5914 (1.093e-07) |
+| k = 100   | 1.6086 (1.914e-08) | 1.6987 (9.644e-09) | 2.1982 (< 2.2e-16) | 1.6171 (5.402e-08) |
+
+
+Plot of the odds ratio in function of the number of clusters (k) for 4 differents metric of hit selection:
+
+```{r result plot, echo=FALSE}
+
+value <- c(1.7464, 2.1182, 2.0963, 2.3945, 1.6212, 1.5293, 1.5307, 1.6172, 1.6206, 1.6086,
+           1.3458, 2.1693, 2.4312, 2.0285, 1.5711, 1.6907, 1.7688, 1.7775, 1.4831, 1.6987,
+           1.9353, 1.8157, 1.8492, 1.8243, 1.9550, 1.9930, 2.5029, 2.1852, 2.1911, 2.1982,
+           1.3907, 2.0729, 2.3715, 1.7745, 1.7879, 1.4759, 1.3822, 1.4949, 1.5914, 1.6171)
+
+test <- data.frame(k = rep(seq(from = 10, to = 100, by = 10), 4), 
+                   val = value, 
+                   method = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = 10))
+
+ggplot(data = test, aes(x=k, y=val)) + 
+  geom_line(aes(colour=method)) + 
+  labs(y = "odds ratio")
+
+```
 
 
 ## Summary of moa

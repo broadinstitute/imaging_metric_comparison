@@ -30,7 +30,10 @@ versus
 - rest
 
 ```{r import new data, message=FALSE}
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Hit_pearson_old.rds"))
+
+filename <- "Hit_jaccard_30n_fs_6206.rds" # "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds"
+
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
 
 profiles <- pf$data
 
@@ -190,5 +193,9 @@ fisher.test(contingency.mat, alternative = "greater")
 ```
 
 
+## Results
 
+|  Method    | Pearson            | Pearson with fs    | Jaccard            | Jaccard with fs    |
+| ---------- | ------------------ | ------------------ | ------------------ | ------------------ | 
+| odds ratio | 2.0523 (2.541e-09) | 2.2943 (7.787e-13) | 2.3070 (2.68e-13)  | **2.3228 (6.536e-14)** |
 

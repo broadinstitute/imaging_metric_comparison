@@ -68,13 +68,13 @@ sum.comp <-
   summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
   mutate_if(is.factor, as.character)
 
-# add column of compound and convert tu uppercase (because some compounds same name but in lower/upper case)
+# add column of compound and convert to uppercase (because some compounds same name but in lower/upper case)
 sum.comp %<>%
   dplyr::left_join(., map.names, by = "Image_Metadata_BROAD_ID") %>% 
   mutate_if(is.character, funs(toupper)) # same compound can be writen in upper and lower case and looks different
 dim(sum.comp)
 
-# keep only one componment (first one)
+# keep only one componment (first one) (this is a safe way to perform)
 sum.comp %<>%
   group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
   slice(1) %>%
@@ -104,6 +104,7 @@ cor.compound.pair <-
              val = cor.comp[ind]) %>%
   dplyr::arrange(desc(val))
 
+# threshold of the top 5%
 quant <- quantile(cor.compound.pair$val, .95)
 
 
@@ -172,15 +173,39 @@ cor.compound.pair %<>%
 # replace NA with 0
 cor.compound.pair[is.na(cor.compound.pair)] <- 0
 
-top5 <- round(.05*dim(cor.compound.pair)[1])
-top5value <- cor.compound.pair$value[1:top5]
-rest95value <- cor.compound.pair$value[(top5+1):dim(cor.compound.pair)[1]]
+# top 5% correlated compound, number of same moa for all pair
+top5.same.moa <- 
+  cor.compound.pair %>% 
+  filter(val >= quant) %>% 
+  select(value) %>% 
+  sum()
+
+# top 5% correlated compound, number of pairs not sharing same MOA
+top5.diff.moa <-
+  cor.compound.pair %>% 
+  filter(val >= quant) %>% 
+  filter(value == 0) %>% 
+  nrow()
+
+# 95% rest, number of same moa for all pair
+rest95.same.moa <- 
+  cor.compound.pair %>%
+  filter(val < quant) %>%
+  select(value) %>%
+  sum()
+
+# 95% rest, number of pairs not sharing same MOA
+rest95.diff.moa <- 
+  cor.compound.pair %>%
+  filter(val < quant) %>%
+  filter(value == 0) %>%
+  nrow()
 
 contingency.mat <-
-  matrix(c(sum(top5value), 
-           length(top5value[top5value==0]), 
-           sum(rest95value), 
-           length(rest95value[rest95value==0])), 
+  matrix(c(top5.same.moa, 
+           top5.diff.moa, 
+           rest95.same.moa, 
+           rest95.diff.moa), 
          nrow = 2, 
          ncol = 2, 
          byrow = TRUE)
@@ -188,14 +213,63 @@ contingency.mat <-
 rownames(contingency.mat) <- c("top 5%", "rest")
 colnames(contingency.mat) <- c("same moa", "diff moa")
 
-# fisher test
+# fisher's exact test
 fisher.test(contingency.mat, alternative = "greater")
 ```
 
 
 ## Results
+Odds ratio (pvalue) for the Fisher's Exact Test
+The method look at the top 5% correlated compounds pairs. For each pairs, we determine if the compounds have the same MOAs or not. Then with this we create a contingency matrix and perform the Fisher's exact test.
+We obtain the following table for the four different hit selection (pearson, pearson with features selection, distance based on Jaccard, distance based on Jaccard with features selection).
 
 |  Method    | Pearson            | Pearson with fs    | Jaccard            | Jaccard with fs    |
 | ---------- | ------------------ | ------------------ | ------------------ | ------------------ | 
-| odds ratio | 2.0523 (2.541e-09) | 2.2943 (7.787e-13) | 2.3070 (2.68e-13)  | **2.3228 (6.536e-14)** |
+| odds ratio | 2.0523 (2.541e-09) | 2.2943 (7.787e-13) | 2.3070 (2.68e-13)  | **2.3228 (6.555e-14)** |
 
+
+
+## Which MOA best represented
+In the 5% top correlated compounds pair that have the same MOA, we count the number of compounds that are sharing the same MOA.
+
+```{r summary moa}
+moa.best <- 
+  cor.compound.pair %>% 
+  filter(val >= quant) %>% 
+  filter(value != 0)
+
+cmp.moa.best <- data.frame(cmp=character(), MOA=character(), stringsAsFactors=FALSE)
+
+for(i in 1:dim(moa.best)[1]){
+  
+  col.moa <- names(which( comp_vs_moa[, moa.best[i, 1]] == 1))
+  
+  row.moa <- names(which( comp_vs_moa[, moa.best[i, 2]] == 1))
+  
+  # find the common moa for the compound pair
+  common.moa <- intersect(col.moa, row.moa)
+  
+  for(j in 1:length(common.moa)){
+    newrow <- data.frame(cmp=moa.best[i, 1], MOA=common.moa[j])
+    cmp.moa.best <- bind_rows(cmp.moa.best, newrow)
+    newrow <- data.frame(cmp=moa.best[i, 2], MOA=common.moa[j])
+    cmp.moa.best <- bind_rows(cmp.moa.best, newrow)
+  }
+  
+  
+}
+  
+cmp.moa.best %<>% group_by(MOA) %>% dplyr::summarise(n = n_distinct(cmp))
+
+final <-
+  moa %>% 
+  dplyr::select(MOA, Image_Metadata_SOURCE_COMPOUND_NAME) %>% 
+  dplyr::group_by(MOA) %>%
+  dplyr::summarise(n.cmpd = n()) %>% 
+  dplyr::right_join(., cmp.moa.best, by = "MOA") %>% 
+  dplyr::mutate(contribute = n/n.cmpd) %>%
+  arrange(desc(n))
+
+knitr::kable(final, caption = "Number of same MOAs in a same cluster compared to the number of total compounds for a specific MOA ")
+
+```

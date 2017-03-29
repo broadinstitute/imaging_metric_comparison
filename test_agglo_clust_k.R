@@ -1,3 +1,5 @@
+# script to plot for multiple files and multiple k the odds ratio of the Fisher's exact test
+
 
 # uplodaing function
 source("agglomerative_clustering_old_function.R")

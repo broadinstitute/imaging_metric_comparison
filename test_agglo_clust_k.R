@@ -26,8 +26,11 @@ value <- value["estimate",] %>% unlist()
 
 test <- data.frame(k = rep(k, 4), 
                    val = value, 
-                   method = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = 5))
+                   method = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = 1))
 
-ggplot(data = test, aes(x=k, y=val)) + 
+odds_vs_k_plot <- ggplot(data = test, aes(x=k, y=val)) + 
   geom_line(aes(colour=method)) + 
-  labs(y = "odds ratio")
+  labs(y = "odds ratio") +
+  ylim(0, 3)
+
+ggsave(filename = 'odds_ratio_vs_k_by1.png', plot = odds_vs_k_plot, width = 10, height = 6)

@@ -213,6 +213,8 @@ contingency.mat <-
 rownames(contingency.mat) <- c("top 5%", "rest")
 colnames(contingency.mat) <- c("same moa", "diff moa")
 
+contingency.mat
+
 # fisher's exact test
 fisher.test(contingency.mat, alternative = "greater")
 ```

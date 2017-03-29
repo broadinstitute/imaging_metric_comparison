@@ -31,8 +31,8 @@ library(tidyverse)
 
 ## parameters
 ```{r parameters}
-numClust <- 70
-set.seed(42)
+numClust <- 300
+#set.seed(42)
 ```
 
 ```{r import new data, message=FALSE}
@@ -214,6 +214,25 @@ for (i in 1:dim(df.clust.moa)[1]){
   }
   
 }
+
+dim.before <- dim(df.clust.moa)[1]
+
+# remove compound that are clustered on their own!
+df.clust.moa %<>%
+  group_by(cluster) %>% 
+  mutate(n = n()) %>% # count number of element in each cluster
+  ungroup(cluster) %>%
+  filter(n > 1) # remove element that have only themself in their cluster
+
+dim.after <- dim(df.clust.moa)[1]
+num.singleton <- dim.before - dim.after
+threshold <- .05*dim(IDs)[1]
+message(paste('number of singletons: ', num.singleton, ' threshold: ', threshold))
+
+if(num.singleton > threshold){
+  message(paste('number of singleton too big! '))
+}
+
 dim(df.clust.moa)
 end.time <- Sys.time()
 time.taken <- end.time - start.time
@@ -346,8 +365,8 @@ final <-
   dplyr::group_by(MOA) %>%
   dplyr::summarise(n.cmpd = n()) %>% 
   dplyr::right_join(., final.sum, by = "MOA") %>% 
-  dplyr::filter(n > 1) %>% #remove column where just one moa (meaning no pairs)
-  dplyr::mutate(contribute = n/n.cmpd)
+  #dplyr::filter(nn > 1) %>% #remove column where just one moa (meaning no pairs)
+  dplyr::mutate(contribute = nn/n.cmpd)
 #final.sum  
 
 knitr::kable(final, caption = "Number of same MOAs in a same cluster compared to the number of total compounds for a specific MOA ")

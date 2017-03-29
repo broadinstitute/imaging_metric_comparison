@@ -26,7 +26,7 @@ value <- value["estimate",] %>% unlist()
 
 test <- data.frame(k = rep(k, 4), 
                    val = value, 
-                   method = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = 1))
+                   method = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = length(k)))
 
 odds_vs_k_plot <- ggplot(data = test, aes(x=k, y=val)) + 
   geom_line(aes(colour=method)) + 

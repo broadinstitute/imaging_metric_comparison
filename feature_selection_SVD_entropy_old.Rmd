@@ -1,0 +1,117 @@
+---
+title: "feature selection SVD entropy"
+output: html_document
+---
+
+This Markedown perform feature selection based on the paper [Novel Unsupervised Feature Filtering of Biological Data](https://academic.oup.com/bioinformatics/article-abstract/22/14/e507/227946/Novel-Unsupervised-Feature-Filtering-of-Biological).
+The method is based on SVD-entropy. The features are selected based on their contribution to the entropy.
+
+
+```{r libraries, include=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+## Data
+
+The input contains only the high median correlation compounds.
+The input data is a 3752 by 803 matrix.
+There are 3752 different observations and 799 features (extracted with CellProfiler).
+Each compound (938 different) has 4 replicates.
+
+```{r import data old, message=FALSE}
+#set.seed(42)
+
+# name of the data file
+filename <- "Pf_Gustafsdottir.rds"
+
+# import data
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+
+profiles <- pf$data
+
+dim(profiles)
+
+variables <- pf$feat_cols
+
+metadata <- pf$factor_cols
+
+```
+
+
+## Feature selection
+
+```{r function for entropy}
+#' Function that calculate the entropy based on SVD.
+#'
+#' @param A dataset mxn (m features and n observations)
+#' @return entropy
+calculate_entropy <- function(A){
+  
+  # calcualte AA.t (mxm)
+  AAt <- tcrossprod(A, A)
+  
+  # calculate the eigenvalues
+  s <- eigen(AAt)
+  
+  # normalize relative values
+  v <- s$values/sum(s$values)
+  
+  # calculate the entropy
+  ind.zero <- which(v <= 0)
+  E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
+    
+  return(E)
+}
+
+```
+
+```{r feature selection}
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
+
+# total entropy
+E <- calculate_entropy(A)
+
+# CE is the contribution vector of each feature to the entropy
+CE <- c()
+
+# for each feature calculate the contribution to the entropy by a leave-one-out comparison
+for(i in 1:dim(A)[1]){
+  Ei <- calculate_entropy(A[-i,])
+  CE <- c(CE, E - Ei)
+}
+
+# average of all CE
+c <- mean(CE)
+# standard deviation of all CE
+d <- sd(CE)
+
+# features to keep, when CEi > c + d
+ind.CEi <- which(CE >= c + d) # select 387 features
+# names of the features to keep
+names.CEi <- rownames(A)[ind.CEi]
+
+profiles %<>% select(one_of(names.CEi, metadata))
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 1.390334 hours
+```
+
+# saving the new dataset
+```{r}
+
+pf$data <- profiles
+pf$feat_cols <- names.CEi
+
+pf %>%
+  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd.rds")
+
+```

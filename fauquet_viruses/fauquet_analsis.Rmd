@@ -1,0 +1,246 @@
+---
+title: "Viruses Dataset of Fauquet"
+output: html_document
+---
+In order to determine if the method is well implemented. First, we test the method on the same dataset as in the paper:
+[The viruses dataset of Fauquet](https://www.stats.ox.ac.uk/pub/PRNN/)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE, message=FALSE}
+library(ggplot2)
+library(caret)
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+## Dataset
+
+```{r}
+test <- read.table("viruses.dat", header=FALSE)
+```
+
+## Simple ranking (SR)
+allows to select mc features according to the highest ranking order of their CE values
+
+# Based on eigenvalues of matrix AAt
+
+```{r function for entropy}
+#' Function that calculate the entropy based on SVD.
+#'
+#' @param A dataset mxn (m features and n observations)
+#' @return entropy
+calculate_entropy <- function(A){
+  
+  # calcualte AA.t (mxm)
+  AAt <- tcrossprod(A, A)
+  
+  # calculate the eigenvalues
+  s <- eigen(AAt)
+  
+  # normalize relative values
+  v <- s$values/sum(s$values)
+  
+  # calculate the entropy
+  ind.zero <- which(v <= 0)
+  if(length(ind.zero)==0){
+    E <- -sum(v * log(v))/log(length(v))
+  }else{
+    E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
+  }
+  
+    
+  return(E)
+}
+
+```
+
+```{r feature selection}
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+A <- test %>% as.matrix() %>% t(.)
+
+# total entropy
+E <- calculate_entropy(A)
+
+# CE is the contribution vector of each feature to the entropy
+CE <- c()
+
+# for each feature calculate the contribution to the entropy by a leave-one-out comparison
+for(i in 1:dim(A)[1]){
+  Ei <- calculate_entropy(A[-i,])
+  CE <- c(CE, E - Ei)
+}
+
+# average of all CE
+c <- mean(CE)
+# standard deviation of all CE
+d <- sd(CE)
+
+# features to keep, when CEi > c + d
+ind.CEi <- which(CE >= c + d) # select 387 features
+# names of the features to keep
+names.CEi <- rownames(A)[ind.CEi]
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 0.05057192 secs
+
+plot(sort(CE,decreasing = TRUE), xlab = 'AAC', ylim = c(-0.02, 0.02), ylab = 'CE', type = 'h') + abline(h = c, lty=2) + abline(h = 0, col = "red") + abline(h = c + d, lty=3)
+```
+
+# Based on the singular value of matrix A
+
+```{r function for entropy with SVD}
+#' Function that calculate the entropy based on SVD.
+#'
+#' @param A dataset mxn (m features and n observations)
+#' @return entropy
+calculate_svd_entropy <- function(A){
+  
+  # calculate the svd
+  s <- svd(A)
+  sj2 <- s$d ** 2
+  # normalize relative values
+  v <- sj2/sum(sj2)
+  
+  # calculate the entropy
+  ind.zero <- which(v <= 0)
+  if(length(ind.zero)==0){
+    E <- -sum(v * log(v))/log(length(v))
+  }else{
+    E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
+  }
+  
+    
+  return(E)
+}
+
+```
+
+```{r feature selection svd}
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+A <- test %>% as.matrix() %>% t(.)
+
+# total entropy
+E <- calculate_svd_entropy(A)
+
+# CE is the contribution vector of each feature to the entropy
+CE <- c()
+
+# for each feature calculate the contribution to the entropy by a leave-one-out comparison
+for(i in 1:dim(A)[1]){
+  Ei <- calculate_svd_entropy(A[-i,])
+  CE <- c(CE, E - Ei)
+}
+
+# average of all CE
+c <- mean(CE)
+# standard deviation of all CE
+d <- sd(CE)
+
+# features to keep, when CEi > c + d
+ind.CEi <- which(CE >= c + d) # select 387 features
+# names of the features to keep
+names.CEi <- rownames(A)[ind.CEi]
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 0.04793882 secs
+
+plot(sort(CE,decreasing = TRUE), xlab = 'AAC', ylim = c(-0.02, 0.02), ylab = 'CE', type = 'h') + abline(h = c, lty=2) + abline(h = 0, col = "red") + abline(h = c + d, lty=3)
+
+AAC <- data.frame(CE = sort(CE, decreasing = TRUE), AAC = aa.names)
+aa.names <- c("GLY", "THR", "LYS", "SER", "MET", "HIS", "TYR", "PHE", "TRP", "PRO", "ILE", "CYS", "ARG", "VAL","GLX", "LEU", "ALA", "ASX")
+
+tmp.df <- data.frame(AAC = aa.names, SR = 1:18)
+
+AAC.met <- data.frame(CE = CE)
+
+AAC.met %<>% left_join(., AAC, by = 'CE')
+
+AAC.met %<>% left_join(., tmp.df, by = "AAC")
+
+```
+
+## FS1 method
+Forward selection
+```{r}
+# transpose the dataset to have featxobs (mxn)
+A <- test %>% as.matrix() %>% t(.)
+
+
+```
+
+## FS2 method
+Forward selection
+--> this gives the same order of the selected features as in the paper!
+```{r}
+# transpose the dataset to have featxobs (mxn)
+A <- test %>% as.matrix() %>% t(.)
+
+idx.best <- c()
+
+for(j in 1:(dim(A)[1]-2)){
+  # total entropy
+  E <- calculate_svd_entropy(A)
+  
+  # CE is the contribution vector of each feature to the entropy
+  CE <- c()
+  
+  # for each feature calculate the contribution to the entropy by a leave-one-out comparison
+  for(i in 1:dim(A)[1]){
+    Ei <- calculate_svd_entropy(A[-i,])
+    CE <- c(CE, E - Ei)
+  }
+  idx <- which.max(CE)
+  idx.best <- c(idx.best, idx)
+  A <- A[-idx,]
+}
+
+# final order: GLY, THR, LYS, SER, PHE, PRO, HIS, VAL, GLX, ARG, ...
+
+```
+
+
+## BE method
+Forward selection
+--> this gives the same order of the selected features as in the paper!
+```{r}
+# transpose the dataset to have featxobs (mxn)
+A <- test %>% as.matrix() %>% t(.)
+
+idx.best <- c()
+
+for(j in 1:(dim(A)[1]-2)){
+  # total entropy
+  E <- calculate_svd_entropy(A)
+  
+  # CE is the contribution vector of each feature to the entropy
+  CE <- c()
+  
+  # for each feature calculate the contribution to the entropy by a leave-one-out comparison
+  for(i in 1:dim(A)[1]){
+    Ei <- calculate_svd_entropy(A[-i,])
+    CE <- c(CE, E - Ei)
+  }
+  idx <- which.min(CE)
+  idx.best <- c(idx.best, idx)
+  A <- A[-idx,]
+}
+
+# final order: GLY, THR, LYS, MET, TRP, HIS, PHE, TYR, CYS, ILE, PRO, ARG, SER, VAL, LEU, GLX, ALA, ASX
+
+```
+
+
+
+
+

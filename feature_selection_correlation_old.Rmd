@@ -28,7 +28,7 @@ set.seed(42)
 filename <- "Pf_Gustafsdottir.rds"
 
 # import data
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", filename))
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
 
 profiles <- pf$data
 

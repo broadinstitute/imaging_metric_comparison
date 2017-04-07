@@ -125,24 +125,21 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   
   # save new dataset
   if(feat.selected){
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_", 
-                           toString(n.feat), 
-                           "n_fs_", 
+    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_",
+                           "fs_svd_", 
                            toString(round(hit.ratio*10000)), 
                            ".rds", 
                            sep = "")
   } else {
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_", 
-                           toString(n.feat), 
-                           "n_", 
+    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_",
                            toString(round(hit.ratio*10000)), 
                            ".rds", 
                            sep = "")
   }
   
   #### uncomment if want to save file
-  #pf %>%
-  #  saveRDS(filename.save)
+  pf %>%
+    saveRDS(filename.save)
   
   end.time <- Sys.time() # 1.4 mins (without feature selection)
   time.taken <- end.time - start.time

@@ -52,19 +52,20 @@ metadata <- pf$factor_cols
 #' @return entropy
 calculate_entropy <- function(A){
   
-  # calcualte AA.t (mxm)
-  AAt <- tcrossprod(A, A)
-  
-  # calculate the eigenvalues
-  s <- eigen(AAt)
-  
+  # calculate the svd
+  s <- svd(A)
+  sj2 <- s$d ** 2
   # normalize relative values
-  v <- s$values/sum(s$values)
+  v <- sj2/sum(sj2)
   
   # calculate the entropy
   ind.zero <- which(v <= 0)
-  E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
-    
+  if(length(ind.zero)==0){
+    E <- -sum(v * log(v))/log(length(v))
+  }else{
+    E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
+  }
+  
   return(E)
 }
 

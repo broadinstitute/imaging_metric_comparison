@@ -3,7 +3,7 @@ title: "feature selection SVD entropy"
 output: html_document
 ---
 
-
+  
 This Markedown perform feature selection based on the paper [Novel Unsupervised Feature Filtering of Biological Data](https://academic.oup.com/bioinformatics/article-abstract/22/14/e507/227946/Novel-Unsupervised-Feature-Filtering-of-Biological).
 The method is based on SVD-entropy. The features are selected based on their contribution to the entropy.
 

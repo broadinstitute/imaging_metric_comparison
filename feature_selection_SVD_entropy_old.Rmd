@@ -6,6 +6,12 @@ output: html_document
 This Markedown perform feature selection based on the paper [Novel Unsupervised Feature Filtering of Biological Data](https://academic.oup.com/bioinformatics/article-abstract/22/14/e507/227946/Novel-Unsupervised-Feature-Filtering-of-Biological).
 The method is based on SVD-entropy. The features are selected based on their contribution to the entropy.
 
+There are three different methods of feature selection:
+
+1) Simple Ranking (SR), select the features that contribute to the Entropy more than the mean + std of all entropy contribution
+2) Forward Selection (FS), choose best and recalculate entropy of all other without the best. Do that until mc features are selected
+3) Backward Elimination (BE), eliminate the lowest entropy contribution feature, until there are just mc features left.
+
 
 ```{r libraries, include=FALSE, message=FALSE}
 library(ggplot2)

@@ -172,10 +172,45 @@ AAC.met %<>% left_join(., tmp.df, by = "AAC")
 
 ## FS1 method
 Forward selection
+--> this gives the same order of the selected features as in the paper!
 ```{r}
 # transpose the dataset to have featxobs (mxn)
 A <- test %>% as.matrix() %>% t(.)
 
+# calculate the total entropy
+E <- calculate_svd_entropy(A)
+
+# CE is the contribution vector of each feature to the entropy
+CE <- c()
+
+# for each feature calculate the contribution to the entropy by a leave-one-out comparison
+for(i in 1:dim(A)[1]){
+  Ei <- calculate_svd_entropy(A[-i,])
+  CE <- c(CE, E - Ei)
+}
+
+# select the best feature
+idx.best <- which.max(CE)
+E.prev <- CE[idx.best]
+
+new.A <- A[idx.best,]
+A <- A[-idx.best,]
+idx.best.save <- idx.best
+for(j in 1:(dim(A)[1]-1)){
+  CE <- c()
+  # for all features
+  for(a in 1:dim(A)[1]){
+    Ei <- calculate_svd_entropy(rbind(new.A, A[a,]))
+    CE <- c(CE, Ei - E.prev)
+  }
+  idx <- which.max(CE)
+  idx.best.save <- c(idx.best.save, idx)
+  E.prev <- CE[idx]
+  new.A <- rbind(new.A, A[idx,])
+  A <- A[-idx,]
+}
+
+# final order: GLY, THR, LYS, MET, TRP, HIS, PHE, TYR, CYS, ILE, PRO, ARG, SER, VAL, LEU, GLX, ALA, ASX
 
 ```
 

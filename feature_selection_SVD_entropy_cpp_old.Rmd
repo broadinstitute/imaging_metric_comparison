@@ -22,6 +22,7 @@ library(magrittr)
 library(dplyr)
 library(tidyverse)
 library(stringr)
+library(Rcpp)
 ```
 
 ## Data
@@ -53,16 +54,16 @@ metadata <- pf$factor_cols
 
 ## Feature selection
 
-```{r feature selection}
+```{r feature selection with SR}
 start.time <- Sys.time()
 
 # load the c++ function
-Rcpp:sourceCpp('ranking_SVD_entropy.cpp')
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 
 # transpose the dataset to have featxobs (mxn)
 A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
 
-CE <- CE_entropy(A)
+CE <- CE_entropy_SR(A)
 
 # average of all CE
 c <- mean(CE)
@@ -78,8 +79,33 @@ profiles %<>% select(one_of(names.CEi, metadata))
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 1.390334 hours
+time.taken # 12.06843 mins
 ```
+
+With SR: keep 9 features: 1 33 56 121 185 267 278 281 307
+
+```{r feature selection with FS2}
+start.time <- Sys.time()
+
+# load the c++ function
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
+
+# transpose the dataset to have featxobs (mxn)
+A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
+
+feat.idx <- CE_entropy_FS2(A, 9)
+
+# names of the features to keep
+names.CEi <- rownames(A)[feat.idx]
+
+profiles %<>% select(one_of(names.CEi, metadata))
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken #  1.79 hours
+```
+
+With FS: keep 9 features: 1 33 45 56 185 267 278 281 307
 
 # saving the new dataset
 ```{r}
@@ -88,6 +114,6 @@ pf$data <- profiles
 pf$feat_cols <- names.CEi
 
 pf %>%
-  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd.rds")
+  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd_SR.rds")
 
 ```

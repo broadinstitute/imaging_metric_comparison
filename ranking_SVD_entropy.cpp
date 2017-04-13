@@ -7,6 +7,9 @@ using namespace std;
 using namespace arma;
 using namespace Rcpp;
 
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
 //' Calculate the entropy of a matrix based on SVD
 //' @param A dataset mxn (m features and n observations) 
 //' @return entropy
@@ -25,6 +28,10 @@ double calculate_entropy(mat A) {
 	
 	return E;
 }
+
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
 
 /* SR method
 Simple Ranking:
@@ -45,7 +52,7 @@ NumericVector CE_entropy_SR(NumericMatrix A){
 	for(unsigned int i = 0; i < A.nrow(); i++){
 	  mat Ai = Amat;
 	  // remove the row i
-	  Ai.shed_row( i ) ;
+	  Ai.shed_row(i) ;
 	  //cout << "Ai size: " << Ai.n_cols << "columns and " << Ai.n_rows << "rows" << endl;
 	  double Ei = calculate_entropy(Ai);
 	  CE[i] = E - Ei;
@@ -54,6 +61,90 @@ NumericVector CE_entropy_SR(NumericMatrix A){
 	return CE;
 }
 
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+
+/* FS1 method
+ * Forward selection
+ */
+//' Calculate the entropy of a matrix based on SVD with FS method
+//' @param A dataset mxn (m features and n observations) 
+//' @return index of features that were selected
+// [[Rcpp::export]]
+NumericVector CE_entropy_FS1(NumericMatrix A, unsigned int mc){//TODO: test that it is correct!
+  // convert into matrix (armadillo)
+  mat Amat(A.begin(), A.nrow(), A.ncol(), false);
+  
+  // vector of index of the features
+  vec idxFeat(linspace<vec>(1, Amat.n_rows, Amat.n_rows));
+  
+  // best features index
+  NumericVector idxBest(mc);
+  
+  // total entropy
+  double E = calculate_entropy(Amat);
+  
+  // CE is the contribution vector of each feature to the entropy
+  vec CE(A.nrow());
+  
+  // for each feature calculate the contribution to the entropy by a leave-one-out comparison
+  for(unsigned int i = 0; i < A.nrow(); i++){
+    mat Ai = Amat;
+    // remove the row i
+    Ai.shed_row(i);
+    //cout << "Ai size: " << Ai.n_cols << "columns and " << Ai.n_rows << "rows" << endl;
+    double Ei = calculate_entropy(Ai);
+    CE[i] = E - Ei;
+  }
+  
+  // select the best feature
+  int idx = CE.index_max();
+  
+  // index of the best feature in the R referential
+  idxBest[0] = idxFeat[idx]; 
+  // remove the selected feature number
+  idxFeat.shed_row(idx);
+  
+  // save the previous entropy contribution
+  double Eprev = CE[idx];
+  
+  // save selected features in a new matrix newA and remove it from the other matrix
+  mat newA(mc, Amat.n_cols, fill::zeros); 
+  newA.row(0)  = Amat.row(idx);
+  Amat.shed_row(idx);
+  
+  for(unsigned int j = 0; j < mc - 1; j++){
+    vec CE(Amat.n_rows);
+    // for all features
+    for(unsigned a = 0; a < Amat.n_rows; a++){
+      //bind the vector to Atest
+      mat Atest = join_cols(newA.rows(0, j), Amat.row(a));
+      // calculate the entropy on the features selected and an extra one
+      double Ei = calculate_entropy(Atest);
+      // gain of entropy
+      CE[a] = Ei - Eprev;
+    }
+    // index of best entropy contribution
+    int idx = CE.index_max();
+    idxBest[j+1] = idxFeat[idx];
+    
+    // update the previous entropy contribution
+    Eprev = CE[idx];
+    newA.row(j+1) = Amat.row(idx);
+    Amat.shed_row(idx);
+    idxFeat.shed_row(idx);
+  }
+  
+  cout << "Best features: " << idxBest << endl;
+  
+  return idxBest;
+}
+
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------        
+        
 /* FS2 method
 Forward selection
 */
@@ -99,10 +190,14 @@ NumericVector CE_entropy_FS2(NumericMatrix A, unsigned int mc){
   return idxBest;
 }
 
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------        
+
 /* BE method
  Backward Elimination
  Super expensive method...
-*/
+
 //' Calculate the entropy of a matrix based on SVD with BE method
 //' @param A dataset mxn (m features and n observations) 
 //' @return index of features that were selected
@@ -144,3 +239,4 @@ NumericVector CE_entropy_BE(NumericMatrix A, unsigned int mc){
   
   return wrap(idxFeat);
 }
+*/

@@ -11,7 +11,7 @@ library(ggplot2)
 
 
 top.corr <- seq(from = 1, to = 90, by = 1)
-files <- c("Hit_pearson_fs_svd_5894.rds","Hit_jaccard_30n_fs_svd_6219.rds") #c("Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds", "Hit_jaccard_50n_6225.rds", "Hit_jaccard_30n_fs_6206.rds")
+files <- c("Hit_pearson_6369.rds","Hit_jaccard_30n_fs_svd_6400.rds") #c("Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds", "Hit_jaccard_50n_6225.rds", "Hit_jaccard_30n_fs_6206.rds")
 
 fisher.test.res <- c()
 for(filename in files){
@@ -35,4 +35,4 @@ odds_vs_top_connection_plot <- ggplot(data = test, aes(x=top.corr, y=val)) +
   labs(y = "odds ratio", x = "% top connection") +
   ylim(0, 5)
 
-ggsave(filename = 'odds_ratio_vs_top_connection_SVD.png', plot = odds_vs_top_connection_plot, width = 10, height = 6)
+ggsave(filename = 'odds_ratio_vs_top_connection_svd_FS1_250.png', plot = odds_vs_top_connection_plot, width = 10, height = 6)

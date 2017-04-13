@@ -93,7 +93,7 @@ Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 # transpose the dataset to have featxobs (mxn)
 A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
 
-feat.idx <- CE_entropy_FS1(A, 9)
+feat.idx <- CE_entropy_FS1(A, 250)
 
 # names of the features to keep
 names.CEi <- rownames(A)[feat.idx]
@@ -102,10 +102,13 @@ profiles %<>% select(one_of(names.CEi, metadata))
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken #  12.90768 mins
+time.taken #  12.90768 mins (3.816624 hours for 250 features)
 ```
 
 With FS2: keep 9 features: 5 56 121 185 291 349 416 421 537
+
+Selected 250 features
+Best features: 56 421 5 537 349 416 185 121 291 552 302 52 118 278 283 281 288 282 276 287 277 735 273 270 26 279 557 161 286 274 34 7 741 33 262 289 22 271 290 44 115 285 16 90 337 258 35 284 217 24 779 549 264 683 280 160 41 587 749 187 23 269 30 113 588 92 241 781 272 635 313 746 36 295 418 586 151 275 55 742 582 789 536 31 139 732 221 37 578 25 293 740 266 745 32 69 87 165 522 265 43 111 179 131 27 267 255 540 117 564 636 171 133 585 642 96 94 228 780 181 615 348 191 640 518 589 112 530 546 195 294 584 580 381 173 367 583 778 114 343 311 734 682 49 38 120 733 332 186 119 42 771 788 342 545 320 731 17 637 550 341 581 198 216 577 527 521 110 744 554 150 777 251 89 592 606 29 85 338 220 237 572 396 579 795 602 164 570 254 2 14 641 141 116 532 315 336 46 169 770 594 184 391 28 240 574 412 182 292 535 19 211 104 303 607 785 268 661 539 600 93 18 748 393 601 138 21 575 159 170 235 767 363 226 346 407 791 323 784 395 205 528 632 736 197 411 54 231 665 253
 
 ```{r feature selection with FS2}
 start.time <- Sys.time()
@@ -137,6 +140,6 @@ pf$data <- profiles
 pf$feat_cols <- names.CEi
 
 pf %>%
-  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd_SR.rds")
+  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd_FS1_250.rds")
 
 ```

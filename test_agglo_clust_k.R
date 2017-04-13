@@ -10,8 +10,8 @@ library(dplyr)
 library(ggplot2)
 
 
-k <- seq(from = 10, to = 180, by = 1)
-files <- c("Hit_pearson_fs_svd_5894.rds","Hit_jaccard_30n_fs_svd_6219.rds") #c("Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds", "Hit_jaccard_50n_6225.rds", "Hit_jaccard_30n_fs_6206.rds")
+k <- seq(from = 10, to = 170, by = 1)
+files <- c("Hit_pearson_6369.rds","Hit_jaccard_30n_fs_svd_6400.rds") #c("Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds", "Hit_jaccard_50n_6225.rds", "Hit_jaccard_30n_fs_6206.rds")
 
 fisher.test.res <- c()
 for(filename in files){
@@ -34,6 +34,6 @@ test <- data.frame(k = rep(k, 2),
 odds_vs_k_plot <- ggplot(data = test, aes(x=k, y=val)) + 
   geom_line(aes(colour=method)) + 
   labs(y = "odds ratio") +
-  ylim(0, 3)
+  ylim(0, 4)
 
-ggsave(filename = 'odds_ratio_vs_k_svd.png', plot = odds_vs_k_plot, width = 10, height = 6)
+ggsave(filename = 'odds_ratio_vs_k_svd_FS1_250.png', plot = odds_vs_k_plot, width = 10, height = 6)

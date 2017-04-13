@@ -11,10 +11,10 @@ library(dplyr)
 library(ggplot2)
 
 
-files <- "Pf_Gustafsdottir_fs_svd.rds" #c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs.rds")
+files <- "Pf_Gustafsdottir_fs_svd_FS1_250.rds" #c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs.rds")
 feat.sel <- TRUE #c(FALSE, TRUE)
 n.feat <- 30 #c(50, 30)
-seeds <- seq(from = 1, to = 100, by = 1)
+seeds <- seq(from = 1, to = 10, by = 1)
 
 hit.ratio <- c()
 
@@ -44,4 +44,4 @@ hit_ratio_vs_seed_plot <- ggplot(data = test, aes(x=methods, y=hit.ratio)) +
   labs(y = "hit ratio") +
   ylim(0, 1)
 
-ggsave(filename = 'hit_ratio_vs_seed_svd.png', plot = hit_ratio_vs_seed_plot, width = 6, height = 6)
+ggsave(filename = 'hit_ratio_vs_seed_svd_FS1_250.png', plot = hit_ratio_vs_seed_plot, width = 6, height = 6)

@@ -84,6 +84,29 @@ time.taken # 12.06843 mins
 
 With SR: keep 9 features: 1 33 56 121 185 267 278 281 307
 
+```{r feature selection with FS1}
+start.time <- Sys.time()
+
+# load the c++ function
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
+
+# transpose the dataset to have featxobs (mxn)
+A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
+
+feat.idx <- CE_entropy_FS1(A, 9)
+
+# names of the features to keep
+names.CEi <- rownames(A)[feat.idx]
+
+profiles %<>% select(one_of(names.CEi, metadata))
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken #  12.90768 mins
+```
+
+With FS2: keep 9 features: 5 56 121 185 291 349 416 421 537
+
 ```{r feature selection with FS2}
 start.time <- Sys.time()
 
@@ -93,7 +116,7 @@ Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 # transpose the dataset to have featxobs (mxn)
 A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
 
-feat.idx <- CE_entropy_FS2(A, 9)
+feat.idx <- CE_entropy_FS2(A, 200)
 
 # names of the features to keep
 names.CEi <- rownames(A)[feat.idx]
@@ -105,7 +128,7 @@ time.taken <- end.time - start.time
 time.taken #  1.79 hours
 ```
 
-With FS: keep 9 features: 1 33 45 56 185 267 278 281 307
+With FS2: keep 9 features: 1 33 45 56 185 267 278 281 307
 
 # saving the new dataset
 ```{r}

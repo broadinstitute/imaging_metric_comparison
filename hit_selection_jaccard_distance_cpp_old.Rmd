@@ -3,6 +3,29 @@ title: "Hit Selection Jaccard distance cpp old"
 output: html_document
 ---
 
+The goal is to do some Hit Selection. Selecting the compounds that have effects, that are showing a phenotype.
+In order to do so, lets find the median replicate distance. 
+The smaller the distance, the more correlated the replicates are.
+
+The distance is defined following the Jaccard distance, which calculate the dissimilarities between sample sets.
+The distance is defined as the mean of the distance between 4 sets. 
+
+A) n top features of component x
+
+B) n top features of component y
+
+C) n bottom features of component x
+
+D) n bottom features of component y
+
+$dist(x,y) = \frac{dist_J(A,B) + dist_J(C,D)}{2}$
+
+$dist_J(i,j) = \frac{|A \cup B| - |A \cap B|}{|A \cup B|}$ 
+
+where n is a parameter to be defined, representing the number of features in a particular set (A, B, C or D)
+
+In this markdown file, the code of the distance is implemented in c++ in order to improve the computational time.
+
 ## Data
 
 ```{r setup, include=FALSE, warning=FALSE, message=FALSE}

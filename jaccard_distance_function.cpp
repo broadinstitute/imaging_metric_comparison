@@ -29,17 +29,17 @@ double distJaccard(vec x, vec y, unsigned int nFeat) {
   std::set_union(C.begin(), C.end(), 
                  D.begin(), D.end(), 
                  std::back_inserter(CDunion));
-  std::vector<int> ABinterect;
+  std::vector<int> ABintersect;
   std::set_intersection(A.begin(), A.end(),
                         B.begin(), B.end(),
-                        std::back_inserter(ABinterect));
-  std::vector<int> CDinterect;
+                        std::back_inserter(ABintersect));
+  std::vector<int> CDintersect;
   std::set_intersection(C.begin(), C.end(),
                         D.begin(), D.end(),
-                        std::back_inserter(CDinterect));
+                        std::back_inserter(CDintersect));
   
-  double dTop = 1 - ABinterect.size()/ABunion.size();
-  double dBottom = 1 - CDinterect.size()/CDunion.size();
+  double dTop = 1.0 - double(ABintersect.size())/ABunion.size();
+  double dBottom = 1.0 - double(CDintersect.size())/CDunion.size();
   
   double distance = (dTop + dBottom)/2.0;
 
@@ -68,15 +68,3 @@ NumericVector vecJaccardDistance(mat A, unsigned int nFeat){
   }
   return distVec;
 }
-
-
-/*** R
-#distJaccard(c(2, 1, 3, 4, 5, 9), c(9, 6, 1, 8, 7, 56), 5)
-
-B <- matrix(c(2, 1, 3, 4, 5, 9, 9, 6, 1, 8, 7, 56, 59, 3, 2, 5, 1, 98, 38, 29, 2, 5, 23, 6), 
-           nrow=4, 
-           ncol=6) 
-
-temp <- vecJaccardDistance(B, 3)
-
-*/

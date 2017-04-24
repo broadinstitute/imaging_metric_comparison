@@ -89,7 +89,7 @@ hist(comp.dist.median,
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 26 secs 
+time.taken # 10 secs 
 ```
 
 
@@ -147,7 +147,7 @@ hist(random.replicate.dist.median,
 thres <- quantile(random.replicate.dist.median, .05)
 print(thres)
 
-end.time <- Sys.time() # 1.4 mins (without feature selection)
+end.time <- Sys.time() # 45 sec (without feature selection)
 time.taken <- end.time - start.time
 time.taken
 ```

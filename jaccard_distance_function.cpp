@@ -7,50 +7,19 @@ using namespace std;
 using namespace arma;
 using namespace Rcpp;
 
-
-// Enable C++11 via this plugin (Rcpp 0.10.3 or later)
-// [[Rcpp::plugins(cpp11)]]
-
-NumericVector intersect(uvec x, uvec y) {
-  std::vector<double> res;
-  std::unordered_set<double> s(y.begin(), y.end());
-  for (int i=0; i < x.size(); ++i) {
-    auto f = s.find(x[i]);
-    if (f != s.end()) {
-      res.push_back(x[i]);
-      s.erase(f);
-    }
-  }
-  return Rcpp::wrap(res);
-}
-
 //' Calculate the Jaccard distance between two sets
 //' @param x and y two vectors of features (1xn)
 //' @param nFeat number of features in each sets
 //' @return result distance between the two vectors
-// [[Rcpp::export]]
 double distJaccard(vec x, vec y, unsigned int nFeat) {
   
   uvec xSort = sort_index(x, "ascend");
   uvec ySort = sort_index(y, "ascend");
   
-  xSort.print("xSort");
-  ySort.print("ySort");
-  
   uvec A = sort(xSort.head(nFeat));
   uvec B = sort(ySort.head(nFeat));
   uvec C = sort(xSort.tail(nFeat));
   uvec D = sort(ySort.tail(nFeat)); 
-  
-  A.print("A");
-  B.print("B");
-  C.print("C");
-  D.print("D");
-  
-  vec Avec = conv_to<vec>::from(A);
-  vec Bvec = conv_to<vec>::from(B);
-  vec Cvec = conv_to<vec>::from(C);
-  vec Dvec = conv_to<vec>::from(D);
 
   std::vector<int> ABunion;
   std::set_union(A.begin(), A.end(), 
@@ -77,7 +46,37 @@ double distJaccard(vec x, vec y, unsigned int nFeat) {
   return distance;
 }
 
+//' Calculate the Jaccard distances between all pairs of vector (different than themself)
+//' @param A matrix of replicate mxn
+//' @param nFeat number of features in each sets
+//' @return vecotr of Jaccard distance
+// [[Rcpp::export]]
+NumericVector vecJaccardDistance(mat A, unsigned int nFeat){
+
+  NumericVector distVec(A.n_rows*(A.n_rows-1)/2);
+  
+  unsigned int idx(0);
+  
+  for(unsigned int i = 0; i < A.n_rows-1; i++){
+    vec x = (A.row(i)).t();
+    for(unsigned int j = i+1; j < A.n_rows; j++){
+      vec y = (A.row(j)).t();
+      distVec[idx] = distJaccard(x, y, nFeat);
+      idx++;
+    }
+    
+  }
+  return distVec;
+}
+
 
 /*** R
-distJaccard(c(2, 1, 3, 4, 5, 9), c(9, 6, 1, 8, 7, 56), 5)
+#distJaccard(c(2, 1, 3, 4, 5, 9), c(9, 6, 1, 8, 7, 56), 5)
+
+B <- matrix(c(2, 1, 3, 4, 5, 9, 9, 6, 1, 8, 7, 56, 59, 3, 2, 5, 1, 98, 38, 29, 2, 5, 23, 6), 
+           nrow=4, 
+           ncol=6) 
+
+temp <- vecJaccardDistance(B, 3)
+
 */

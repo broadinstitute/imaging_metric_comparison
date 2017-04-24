@@ -48,26 +48,8 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   
   ## Distance of the data
   
-  # function to calculate the distance between two sets
-  distJaccard <- function(x, y){
-    # 4 sets: n.feat first and n.feat lasts features
-    x.sort <- sort(x)
-    y.sort <- sort(y)
-    
-    A <- names(x.sort[1:n.feat])
-    B <- names(y.sort[1:n.feat])
-    
-    # sorting each time
-    C <- names(x.sort[seq.int(to = length(x.sort), length.out = n.feat)])
-    D <- names(y.sort[seq.int(to = length(y.sort), length.out = n.feat)])
-    
-    d.top <- 
-      (length(union(A, B)) - length(intersect(A, B)))/length(union(A, B))
-    d.bottom <-
-      (length(union(C, D)) - length(intersect(C, D)))/length(union(C, D))
-    
-    return((d.top + d.bottom)/2)
-  }
+  # load the c++ function
+  Rcpp::sourceCpp('jaccard_distance_function.cpp')
   
   # loop over all IDs and save the median of the distance
   comp.dist.median <- foreach(i = 1:length(IDs$Image_Metadata_BROAD_ID), .combine=cbind) %dopar% {
@@ -80,14 +62,11 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
       as.matrix()
     
     # distance of the features
-    comp.dist <-
-      lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
-                                            unlist)) %>%
-      do.call(rbind, .)
+    comp.dist <- vecJaccardDistance(comp, n.feat)
     
-    # save median of the correlation
+    # save median of the distance
     comp.dist.median <- 
-      median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE)
+      median(comp.dist, na.rm=TRUE)
     
   }
   
@@ -119,13 +98,10 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
       as.matrix()
     
     # distance of the features
-    comp.dist <- 
-      lapply(1:dim(comp)[1], function(x) (lapply(1:dim(comp)[1], function(y) return(distJaccard(comp[x,], comp[y,]))) %>%
-                                            unlist)) %>% 
-      do.call(rbind, .)
+    comp.dist <- vecJaccardDistance(comp, n.feat)
     
     # median of the non replicate distance
-    random.replicate.dist.median <- median(comp.dist[lower.tri(comp.dist)],na.rm=TRUE)
+    random.replicate.dist.median <- median(comp.dist,na.rm=TRUE)
     
   }
   

@@ -22,7 +22,7 @@ pf <- readRDS("../input/Pf_Gustafsdottir.rds")
 dim(pf$data)
 
 # Remove the negative control from the data
-pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "")
+pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 1280
 dim(pf$data)
 ```
 
@@ -46,7 +46,7 @@ variance <- eig*100/sum(eig)
 cumvar <- cumsum(variance)
 eig.feat <- data.frame(eig = eig, variance = variance,
                      cumvariance = cumvar)
-head(eig.feat, n = 30L)
+head(eig.feat, n = 20L)
 
 summary(res.pca)
 

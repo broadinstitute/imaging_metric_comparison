@@ -119,7 +119,7 @@ Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 # transpose the dataset to have featxobs (mxn)
 A <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
 
-feat.idx <- CE_entropy_FS2(A, 250)
+feat.idx <- CE_entropy_FS2(A, 1)
 
 # names of the features to keep
 names.CEi <- rownames(A)[feat.idx]
@@ -128,13 +128,37 @@ profiles %<>% select(one_of(names.CEi, metadata))
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken #  1.79 hours (1. 381417 days for 250 features)
+time.taken #  1.79 hours (1. 381417 days for 250 features) (12.36min for 1 feature)
 ```
 
 With FS2: keep 9 features: 1 33 45 56 185 267 278 281 307
 
 Select 250 features
 Best features: 56 1 267 185 33 307 278 45 281 46 121 282 283 273 287 114 47 277 270 262 288 120 170 171 261 552 292 591 291 115 276 418 417 23 34 286 416 6 590 349 271 285 584 259 558 575 279 26 275 280 579 284 583 389 274 290 589 272 571 265 58 253 517 518 767 766 175 5 35 574 211 179 468 415 164 557 258 7 36 215 214 153 527 547 548 537 538 467 528 566 195 578 289 588 117 116 231 210 230 22 393 266 269 24 16 165 204 145 118 119 59 189 191 737 48 218 219 150 398 570 144 41 586 577 587 608 40 653 354 648 98 406 361 362 565 263 254 582 57 205 151 181 410 573 385 607 337 636 342 641 601 302 130 131 85 90 293 42 184 37 733 569 309 747 294 568 183 235 139 135 402 239 103 249 159 141 221 220 592 14 264 25 248 238 233 188 229 228 199 241 251 250 240 736 609 234 244 245 161 160 173 152 182 667 232 133 201 169 208 168 209 225 224 683 125 155 154 124 149 129 148 158 403 198 138 532 82 526 217 216 525 466 308 51 76 81 106 86 91 71 646 96 631 549 550 539 55 66 317 101
+
+```{r feature selection with FS2 new}
+start.time <- Sys.time()
+
+# load the c++ function
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
+
+# transpose the dataset to have featxobs (mxn)
+X <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
+A <- tcrossprod(X, X)
+
+feat.idx <- CE_entropy_FS2_new(A, 1)
+
+# names of the features to keep
+names.CEi <- rownames(X)[feat.idx]
+
+profiles %<>% select(one_of(names.CEi, metadata))
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken #  1.79 hours (1.381417 days for 250 features) (2.358974 mins for 1 feature)
+```
+
+With FS2: keep 9 features: 
 
 # saving the new dataset
 ```{r}

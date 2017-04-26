@@ -78,18 +78,82 @@ for(i in 1:dim(A)[1]){
 }
 
 # average of all CE
-c <- mean(CE)
+c <- mean(CE) # -0.00141627475768009
 # standard deviation of all CE
-d <- sd(CE)
+d <- sd(CE)# 0.00762916252676454
 
 # features to keep, when CEi > c + d
 ind.CEi <- which(CE >= c + d) # select 387 features
 # names of the features to keep
-names.CEi <- rownames(A)[ind.CEi]
+names.CEi <- rownames(A)[ind.CEi] # V2 and V6
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 0.05057192 secs
+time.taken # 0.0889 secs (caculate_entropy)
+
+plot(sort(CE,decreasing = TRUE), xlab = 'AAC', ylim = c(-0.02, 0.02), ylab = 'CE', type = 'h') + abline(h = c, lty=2) + abline(h = 0, col = "red") + abline(h = c + d, lty=3)
+```
+## Alternative method
+When the number of features is lower than the number of sample, calculating the SVD is really costly. An alternative method is to calculate the SVD of the matrix XtX which will be computationaly less expensive.
+```{r alternative for svd-entropy}
+#' Function that calculate the entropy based on SVD. With A=XtX instead of A=Xt
+#'
+#' @param A dataset mxm (m features and n observations)
+#' @return entropy
+calculate_svd_entropy_new <- function(A){
+  
+  # calculate the svd
+  s <- svd(A)
+  sj2 <- s$d
+  # normalize relative values
+  v <- sj2/sum(sj2)
+  
+  # calculate the entropy
+  ind.zero <- which(v <= 0)
+  if(length(ind.zero)==0){
+    E <- -sum(v * log(v))/log(length(v))
+  }else{
+    E <- -sum(v[-ind.zero] * log(v[-ind.zero]))/log(length(v))
+  }
+  
+  return(E)
+}
+
+```
+
+```{r feature selection}
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+X <- test %>% as.matrix() %>% t(.)
+
+A <- tcrossprod(X, X)
+
+# total entropy
+E <- calculate_svd_entropy_new(A)
+
+# CE is the contribution vector of each feature to the entropy
+CE <- c()
+
+# for each feature calculate the contribution to the entropy by a leave-one-out comparison
+for(i in 1:dim(A)[1]){
+  Ei <- calculate_svd_entropy_new(A[-i,-i]) # since the matrix A is XtX, the feature i is present in both the i-th row and column.
+  CE <- c(CE, E - Ei)
+}
+
+# average of all CE
+c <- mean(CE) # -0.001416274757680083
+# standard deviation of all CE
+d <- sd(CE)# 0.00762016252676452
+
+# features to keep, when CEi > c + d
+ind.CEi <- which(CE >= c + d) # select 387 features
+# names of the features to keep
+names.CEi <- rownames(A)[ind.CEi] # V2 and V6
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 0.04960394 secs (caculate_entropy)
 
 plot(sort(CE,decreasing = TRUE), xlab = 'AAC', ylim = c(-0.02, 0.02), ylab = 'CE', type = 'h') + abline(h = c, lty=2) + abline(h = 0, col = "red") + abline(h = c + d, lty=3)
 ```

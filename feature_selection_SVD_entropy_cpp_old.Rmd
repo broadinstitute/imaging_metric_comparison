@@ -146,7 +146,7 @@ Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 X <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
 A <- tcrossprod(X, X)
 
-feat.idx <- CE_entropy_FS2_new(A, 1)
+feat.idx <- CE_entropy_FS2_new(A, 250)
 
 # names of the features to keep
 names.CEi <- rownames(X)[feat.idx]
@@ -155,7 +155,9 @@ profiles %<>% select(one_of(names.CEi, metadata))
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken #  1.79 hours (1.381417 days for 250 features) (2.358974 mins for 1 feature)
+time.taken # (5.10729 hours for 250 features) (2.358974 mins for 1 feature)
+
+# obtain exaclty same result
 ```
 
 With FS2: keep 9 features: 
@@ -167,6 +169,6 @@ pf$data <- profiles
 pf$feat_cols <- names.CEi
 
 pf %>%
-  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd_FS2_250.rds")
+  saveRDS("../../input/BBBC022_2013/old/Pf_Gustafsdottir_fs_svd_FS2_new_250.rds")
 
 ```

@@ -1,0 +1,55 @@
+---
+title: "Single cell feature selection"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+## import the data
+
+```{r import data, message=FALSE}
+# name of the data file
+filename <- "BBBC022_sampled_10000.rds"
+
+# import data
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename)) %>% scale() %>% as.data.frame()
+
+profiles <- pf[ , colSums(is.na(pf)) == 0] # remove features (columns) where there are NA
+
+dim(profiles)
+
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+X <- profiles %>% as.matrix() %>% t(.)
+A <- tcrossprod(X, X) 
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken 
+# 0.2144461 seconds for 10193x824
+# 6.047441 seconds for 163088x824
+# 15.70986 minutes for 1304704x824
+```
+
+```{r feature selection with FS2 new}
+start.time <- Sys.time()
+
+# load the c++ function
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
+
+feat.idx <- CE_entropy_FS2_new(A, 250)
+
+# names of the features to keep
+names.CEi <- rownames(X)[feat.idx]
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 2.577435 mins for 1 feature ( hours for 250 features)
+```

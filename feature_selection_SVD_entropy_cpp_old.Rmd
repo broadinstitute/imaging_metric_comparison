@@ -144,7 +144,7 @@ Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 
 # transpose the dataset to have featxobs (mxn)
 X <- profiles %>% select(one_of(variables)) %>% as.matrix() %>% t(.)
-A <- tcrossprod(X, X)
+A <- tcrossprod(X, X) # takes 0.3676331 to calculate the transpose and the cross-product
 
 feat.idx <- CE_entropy_FS2_new(A, 250)
 

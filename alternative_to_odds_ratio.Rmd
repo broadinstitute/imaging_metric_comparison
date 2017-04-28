@@ -1,0 +1,210 @@
+---
+title: "alternative to odds ratio"
+output: html_document
+---
+
+The problem of odds ratio is that it is not really interpretable. In order to solve this, this markdown aims at doing another statistical analysis. It looks at what % of compounds doest the top 10% of matching compounds contain at least 1 compound with the same annotated MOA.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(foreach)
+library(doMC)
+library(stringr)
+library(tidyverse)
+```
+
+## parameters
+```{r parameters}
+# for reproductibility
+seed <- 42
+
+set.seed(seed)
+```
+
+## import the data
+
+```{r import new data, message=FALSE}
+
+filename <- "Hit_jaccard_30n_FS2_svd_5950.rds" # "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds"
+
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+
+profiles <- pf$data
+
+variables <- pf$feat_cols
+```
+
+## Summary of the compound
+
+Do the average along replicates.
+
+```{r compound summary}
+# find the different compounds
+IDs <- distinct(profiles, Image_Metadata_BROAD_ID)
+dim(IDs)
+
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+map.names <-
+  profiles %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  unique %>% # keep unique rows, one column can have same value
+  mutate_if(is.factor, as.character) %>% # if is a factor transform into a character
+  as.data.frame() # be sure it is a dataframe
+rownames(map.names) <- map.names$Image_Metadata_BROAD_ID # transform the names of the rows into the IDs
+
+# average along replicate (keep only id and variables)
+sum.comp <- 
+  profiles %>% 
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
+  mutate_if(is.factor, as.character)
+
+# add column of compound and convert to uppercase (because some compounds same name but in lower/upper case)
+sum.comp %<>%
+  dplyr::left_join(., map.names, by = "Image_Metadata_BROAD_ID") %>% 
+  mutate_if(is.character, funs(toupper)) # same compound can be writen in upper and lower case and looks different
+dim(sum.comp)
+
+# keep only one componment (first one) (this is a safe way to perform)
+sum.comp %<>%
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup %>%
+  as.data.frame()
+dim(sum.comp)
+
+row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
+```
+
+```{r}
+# correlation compound-compound
+cor.comp <-
+  sum.comp[, variables] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+
+
+cor.compound.pair <- 
+  melt(cor.comp) %>%
+  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+  filter(cmpd1 != cmpd2) # remove column were same compound
+
+```
+
+
+## MOA data
+
+```{r import MOAs}
+# import MOAs data
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) %>%
+  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
+# compounds name to upper case
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
+  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
+  unlist
+moa %<>% 
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+
+# duplicate rows when multiple MOAs for one sample
+for (i in 1:dim(moa)[1]){
+  # if there are more than 1 moa associated
+  if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
+    moa$MOA[i] <- t1[1]
+    new.row <- moa[i,]
+    new.row$MOA <- t1[2]
+    moa <- rbind(moa, new.row)
+  }
+  
+}
+dim(moa)
+
+```
+
+
+```{r}
+# joining moa and compounds information
+tmp <- moa %>%
+  dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+dim(tmp)
+# binary indicator matrix of ID vs MOA 
+comp_vs_moa <- tmp %>%
+  select(MOA, Image_Metadata_BROAD_ID) 
+comp_vs_moa <-  as.matrix(as.data.frame.matrix(table(comp_vs_moa)))
+
+# number of moa in common for each ID pairs
+comp_vs_comp <-
+  t(comp_vs_moa)  %*% comp_vs_moa %>% # calculate matrix compound ID - compound ID relation
+  melt(.) %>% # transform matrix into column
+  filter(Var1 != Var2)
+
+cor.compound.pair %<>% 
+  mutate_if(is.factor, as.character) %>%
+  dplyr::left_join(., 
+                   mutate_if(comp_vs_comp, is.factor, as.character), 
+                   by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
+
+# replace NA with 0
+cor.compound.pair[is.na(cor.compound.pair)] <- 0
+
+```
+
+## Percentage
+Percentage of compound that have at least 1 compound with same MOA in the top 10% of correlation. 
+
+```{r knn}
+# calculate 
+top.moa.matching <- 
+  cor.compound.pair %>%
+  group_by(cmpd1) %>% # group by compound
+  arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+  filter(corr > quantile(corr, .9)) %>% # look at the top 10% correlation in each group
+  summarise(p = sum(value)/n()) %>% # percentage of similar moa
+  ungroup()
+
+final.number <-
+  top.moa.matching %>%
+  filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
+  summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
+  as.numeric()
+```
+
+## Baseline
+1000x do random shuffles of rows -> give random number to compare with
+
+```{r baseline}
+
+v <- rownames(cor.comp) # extract names of the rows and columns to shuffle
+
+set.seed(seed)
+N <- 1000 # number of time reproduce the same analysis
+seeds <- sample(1:10000, N, replace=F)
+
+
+random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
+  set.seed(seeds[i])
+  t <- sample(v)
+
+  cor.compound.pair.baseline <- 
+    cor.comp %>%
+
+
+    melt(cor.comp) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) # remove column were same compound
+
+  random.percent <- 
+}
+```
+
+
+

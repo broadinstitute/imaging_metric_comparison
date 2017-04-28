@@ -23,6 +23,9 @@ library(tidyverse)
 seed <- 42
 
 set.seed(seed)
+
+# number of CPU cores for parallelization
+registerDoMC(7)
 ```
 
 ## import the data
@@ -182,6 +185,7 @@ final.number <-
 1000x do random shuffles of rows -> give random number to compare with
 
 ```{r baseline}
+start.time <- Sys.time()
 
 v <- rownames(cor.comp) # extract names of the rows and columns to shuffle
 
@@ -191,20 +195,65 @@ seeds <- sample(1:10000, N, replace=F)
 
 
 random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
+  # for reproducibility
   set.seed(seeds[i])
+  # randomly shuffle names of the compounds
   t <- sample(v)
-
-  cor.compound.pair.baseline <- 
-    cor.comp %>%
-
-
-    melt(cor.comp) %>%
+  
+  # shuflle in the same random way the names of the rows and the columns
+  cor.comp.random <- cor.comp
+  rownames(cor.comp.random) <- t
+  colnames(cor.comp.random) <- t
+  
+  cor.comp.random %<>% 
+    melt(.) %>%
     rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
     filter(cmpd1 != cmpd2) # remove column were same compound
+  cor.comp.random %<>%
+    mutate_if(is.factor, as.character) %>%
+    dplyr::left_join(.,
+                     mutate_if(comp_vs_comp, is.factor, as.character),
+                     by = c("cmpd1" = "Var1", "cmpd2" = "Var2")) # add number of moa information.
 
-  random.percent <- 
+  # replace NA with 0
+  cor.comp.random[is.na(cor.comp.random)] <- 0
+  
+  top.moa.matching <- 
+    cor.comp.random %>%
+    group_by(cmpd1) %>% # group by compound
+    arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+    filter(corr > quantile(corr, .9)) %>% # look at the top 10% correlation in each group
+    summarise(p = sum(value)/n()) %>% # percentage of similar moa
+    ungroup()
+
+  random.percent <-
+    top.moa.matching %>%
+    filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
+    summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
+    as.numeric()
 }
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken
 ```
 
+
+```{r mean and 95 quantile}
+# mean of the baseline
+mean.random <- mean(random.percent)
+
+# 95-quantile of the baseline
+quant <- quantile(random.percent, .95)
+
+#print result
+print("Mean of the baseline: ")
+mean.random
+print("95-quantile of the baseline: ")
+quant
+print("percentage of data: ")
+final.number
+
+```
 
 

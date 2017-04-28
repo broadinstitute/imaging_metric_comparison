@@ -19,6 +19,9 @@ library(tidyverse)
 
 ## parameters
 ```{r parameters}
+
+top.x <- 0.02 # top percentage of matching compound. 0.1 = 10%, 0.05 = 5%, 0.02 = 2%
+
 # for reproductibility
 seed <- 42
 
@@ -32,7 +35,7 @@ registerDoMC(7)
 
 ```{r import new data, message=FALSE}
 
-filename <- "Hit_jaccard_30n_FS2_svd_5950.rds" # "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds"
+filename <- "Hit_pearson_fs_5975.rds" # "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
 
@@ -170,7 +173,7 @@ top.moa.matching <-
   cor.compound.pair %>%
   group_by(cmpd1) %>% # group by compound
   arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-  filter(corr > quantile(corr, .9)) %>% # look at the top 10% correlation in each group
+  filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
   summarise(p = sum(value)/n()) %>% # percentage of similar moa
   ungroup()
 
@@ -182,7 +185,7 @@ final.number <-
 ```
 
 ## Baseline
-1000x do random shuffles of rows -> give random number to compare with
+1000x do random shuffles of rows -> give a way to compare result with randomness
 
 ```{r baseline}
 start.time <- Sys.time()
@@ -222,7 +225,7 @@ random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
     cor.comp.random %>%
     group_by(cmpd1) %>% # group by compound
     arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-    filter(corr > quantile(corr, .9)) %>% # look at the top 10% correlation in each group
+    filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
     summarise(p = sum(value)/n()) %>% # percentage of similar moa
     ungroup()
 
@@ -235,9 +238,10 @@ random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken
+time.taken # 16.36832 mins
 ```
 
+## Results
 
 ```{r mean and 95 quantile}
 # mean of the baseline
@@ -251,9 +255,116 @@ print("Mean of the baseline: ")
 mean.random
 print("95-quantile of the baseline: ")
 quant
-print("percentage of data: ")
+print("percentage of the data: ")
 final.number
 
 ```
+
+For Jaccard Hit selection with FS2 svd-entropy feature selection:
+
+For top 10%
+Mean of the baseline: 0.1099379
+95-quantile of the baseline: 0.1230937
+percentage for the data: 0.1416122
+
+For top 5%
+Mean of the baseline: 0.06889542
+95-quantile of the baseline: 0.08061002
+percentage for the data: 0.09912854
+
+For top 2%
+Mean of the baseline: 0.03328322
+95-quantile of the baseline: 0.04357298
+percentage for the data: 0.07625272
+
+
+For Jaccard Hit selection with no feature selection:
+
+For top 10%
+Mean of the baseline: 0.1123535
+95-quantile of the baseline: 0.1240876 
+percentage of the data: 0.1397289
+
+For top 5%
+Mean of the baseline: 0.07259645
+95-quantile of the baseline: 0.08342023 
+percentage of the data: 0.1063608
+
+For top 2%
+Mean of the baseline: 0.0360219
+95-quantile of the baseline: 0.04593326 
+percentage of the data: 0.08237748
+
+
+For Jaccard Hit selection with findCorrelation feature selection:
+
+For top 10%
+Mean of the baseline: 0.1162179
+95-quantile of the baseline: 0.1293014 
+percentage of the data: 0.1334724
+
+For top 5%
+Mean of the baseline: 0.07534515
+95-quantile of the baseline: 0.08863399 
+percentage of the data: 0.1001043
+
+For top 2%
+Mean of the baseline: 0.03754119
+95-quantile of the baseline: 0.04900938 
+percentage of the data: 0.0729927
+
+For Pearson Hit selection with FS2 svd-entropy feature selection:
+
+For top 10%
+Mean of the baseline: 0.1164171
+95-quantile of the baseline: 0.1286432 
+percentage of the data: 0.1477387
+
+For top 5%
+Mean of the baseline: 0.07525126
+95-quantile of the baseline: 0.08648241 
+percentage of the data: 0.1005025
+
+For top 2%
+Mean of the baseline: 0.03626935
+95-quantile of the baseline: 0.04723618 
+percentage of the data: 0.07437186
+
+
+For Pearson Hit selection with no feature selection:
+
+For top 10%
+Mean of the baseline: 0.1133042
+95-quantile of the baseline: 0.1269147 
+percentage of the data: 0.1367615
+
+For top 5%
+Mean of the baseline: 0.07308753
+95-quantile of the baseline: 0.08643326 
+percentage of the data: 0.09956236
+
+For top 2%
+Mean of the baseline: 0.03617724
+95-quantile of the baseline: 0.04704595 
+percentage of the data: 0.07330416
+
+
+For Pearson Hit selection with findCorrelation feature selection:
+
+For top 10%
+Mean of the baseline: 0.1161148
+95-quantile of the baseline: 0.1289274 
+percentage of the data: 0.1386782
+
+For top 5%
+Mean of the baseline: 0.07555471
+95-quantile of the baseline: 0.08884074 
+percentage of the data: 0.09967497
+
+For top 2%
+Mean of the baseline: 0.03697616
+95-quantile of the baseline: 0.04772481 
+percentage of the data: 0.07258938
+
 
 

@@ -35,7 +35,7 @@ registerDoMC(7)
 
 ```{r import new data, message=FALSE}
 
-filename <- "Hit_pearson_fs_5975.rds" # "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_5925.rds", "Hit_pearson_fs_5975.rds"
+filename <- "Hit_pearson_5925.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
 
@@ -86,23 +86,6 @@ dim(sum.comp)
 row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
 ```
 
-```{r}
-# correlation compound-compound
-cor.comp <-
-  sum.comp[, variables] %>% 
-  as.matrix() %>%
-  t() %>%
-  cor()
-
-
-cor.compound.pair <- 
-  melt(cor.comp) %>%
-  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
-  filter(cmpd1 != cmpd2) # remove column were same compound
-
-```
-
-
 ## MOA data
 
 ```{r import MOAs}
@@ -136,11 +119,12 @@ dim(moa)
 
 ```
 
-
 ```{r}
 # joining moa and compounds information
 tmp <- moa %>%
-  dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+  dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME") %>%
+  filter(!is.na(MOA)) %>% # select only rows that have a MOA
+  filter(!is.na(Image_Metadata_BROAD_ID)) # select only rows that have a BROAD_ID
 dim(tmp)
 # binary indicator matrix of ID vs MOA 
 comp_vs_moa <- tmp %>%
@@ -152,7 +136,27 @@ comp_vs_comp <-
   t(comp_vs_moa)  %*% comp_vs_moa %>% # calculate matrix compound ID - compound ID relation
   melt(.) %>% # transform matrix into column
   filter(Var1 != Var2)
+```
 
+```{r}
+# correlation compound-compound
+sum.comp %<>% filter(Image_Metadata_BROAD_ID %in% tmp$Image_Metadata_BROAD_ID) # remove compounds that do not have MOAs
+row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
+cor.comp <-
+  sum.comp[, variables] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+
+
+cor.compound.pair <- 
+  melt(cor.comp) %>%
+  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+  filter(cmpd1 != cmpd2) # remove column were same compound
+
+```
+
+```{r}
 cor.compound.pair %<>% 
   mutate_if(is.factor, as.character) %>%
   dplyr::left_join(., 
@@ -259,6 +263,45 @@ print("percentage of the data: ")
 final.number
 
 ```
+
+## Results only with compounds that have at least one MOA
+
+For Jaccard Hit selection with FS2 svd-entropy feature selection:
+Mean of the baseline: 0.103539
+95-quantile of the baseline: 0.1355932 
+percentage of the data: 0.2305085
+
+For Jaccard Hit selection with findCorrelation feature selection:
+For top 2%
+Mean of the baseline: 0.1296275
+95-quantile of the baseline: 0.1666667 
+percentage of the data: 0.2254902
+
+For Jaccard Hit selection with no feature selection:
+For top 2%
+Mean of the baseline: 0.1265017
+95-quantile of the baseline: 0.1584158 
+percentage of the data: 0.2673267
+
+For Pearson Hit selection with FS2 svd-entropy feature selection:
+For top 2%
+Mean of the baseline: 0.1198308
+95-quantile of the baseline: 0.1507692 
+percentage of the data: 0.2276923
+
+For Pearson Hit selection with findCorrelation feature selection:
+For top 2%
+Mean of the baseline: 0.113431
+95-quantile of the baseline: 0.1481481 
+percentage of the data: 0.2188552
+
+For Pearson Hit selection with no feature selection:
+For top 2%
+Mean of the baseline: 0.1159517
+95-quantile of the baseline: 0.1517241 
+percentage of the data: 0.2310345
+
+## Results with all compounds
 
 For Jaccard Hit selection with FS2 svd-entropy feature selection:
 

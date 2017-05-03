@@ -125,6 +125,9 @@ tmp <- moa %>%
   dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME") %>%
   filter(!is.na(MOA)) %>% # select only rows that have a MOA
   filter(!is.na(Image_Metadata_BROAD_ID)) # select only rows that have a BROAD_ID
+
+n.MOA <- table(tmp$MOA) %>% as.data.frame() %>% filter(Freq != 1) # select MOA that are not appearing only once
+tmp %<>%  filter(MOA %in% n.MOA$Var1) # select compounds that have a shared MOA
 dim(tmp)
 # binary indicator matrix of ID vs MOA 
 comp_vs_moa <- tmp %>%
@@ -242,7 +245,7 @@ random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
 
 end.time <- Sys.time()
 time.taken <- end.time - start.time
-time.taken # 16.36832 mins
+time.taken # 50 secs
 ```
 
 ## Results
@@ -263,6 +266,40 @@ print("percentage of the data: ")
 final.number
 
 ```
+## Results only with compounds that have at least one shared MOA
+
+For top 2%
+
+For Jaccard Hit selection with FS2 svd-entropy feature selection:
+Mean of the baseline: 0.1435895
+95-quantile of the baseline: 0.1834061 
+percentage of the data: 0.30131
+
+For Jaccard Hit selection with findCorrelation feature selection:
+Mean of the baseline: 0.1518926
+95-quantile of the baseline: 0.1942149 
+percentage of the data: 0.2768595
+
+For Jaccard Hit selection with no feature selection:
+Mean of the baseline: 0.1535932
+95-quantile of the baseline: 0.1991525 
+percentage of the data: 0.3347458
+
+For Pearson Hit selection with FS2 svd-entropy feature selection:
+Mean of the baseline: 0.1679763
+95-quantile of the baseline: 0.2094862 
+percentage of the data: 0.3003953
+
+For Pearson Hit selection with findCorrelation feature selection:
+Mean of the baseline: 0.150911
+95-quantile of the baseline: 0.1949153 
+percentage of the data: 0.2754237
+
+For Pearson Hit selection with no feature selection:
+Mean of the baseline: 0.1495665
+95-quantile of the baseline: 0.1888412 
+percentage of the data: 0.2961373
+
 
 ## Results only with compounds that have at least one MOA
 

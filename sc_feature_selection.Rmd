@@ -63,7 +63,7 @@ start.time <- Sys.time()
 # load the c++ function
 Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
 
-feat.idx <- CE_entropy_FS2_new(A, 250)
+feat.idx <- CE_entropy_FS2_new(A, 700)
 
 # names of the features to keep
 names.CEi <- rownames(X)[feat.idx]

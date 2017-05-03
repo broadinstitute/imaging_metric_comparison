@@ -35,7 +35,14 @@ cl <- str_replace(cl, "Syto", "RNA")
 colnames(pf$data) <- cl
 
 # select the features
-pf$data %<>% select(one_of(v))
+pf$data %<>% select(one_of(v, pf$factor_cols))
+
+pf$feat_cols <- v
+
+# save dataset
+pf %>%
+  saveRDS("../../input/BBBC022_2013/single_cells/Pf_Gustafsdottir_sc_FS2.rds")
+
 
 ```
 

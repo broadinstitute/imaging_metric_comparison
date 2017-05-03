@@ -1,0 +1,91 @@
+---
+title: "Single cell feature selection"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+```
+
+## import the data
+
+```{r import data, message=FALSE}
+# name of the single cell data file
+filename.sc <- "BBBC022_sampled_10000.rds"
+
+# name of the profile data (in order to remove not meaningfull data)
+data.filename <- "Pf_Gustafsdottir.rds"
+
+# import data
+pf.sc <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename.sc)) %>% scale() %>% as.data.frame()
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", data.filename))
+
+# difference of features name between old and new version:
+# Hoechst -> DNA, Ph_golgi -> AGP, Syto -> RNA
+pf$feat_cols <- str_replace(pf$feat_cols, "Hoechst", "DNA")
+pf$feat_cols <- str_replace(pf$feat_cols, "Ph_golgi", "AGP")
+pf$feat_cols <- str_replace(pf$feat_cols, "Syto", "RNA")
+cl <- colnames(pf$data)
+cl <- str_replace(cl, "Hoechst", "DNA")
+cl <- str_replace(cl, "Ph_golgi", "AGP")
+cl <- str_replace(cl, "Syto", "RNA")
+colnames(pf$data) <- cl
+
+profiles <- pf.sc[ , colSums(is.na(pf.sc)) == 0] # remove features (columns) where there are NA
+
+feat.delete <- setdiff(colnames(profiles), pf$feat_cols) # features that are in profiles but not in pf
+
+profiles <- profiles[, !names(profiles) %in% feat.delete] # remove features
+
+dim(profiles)
+
+start.time <- Sys.time()
+
+# transpose the dataset to have featxobs (mxn)
+X <- profiles %>% as.matrix() %>% t(.)
+A <- tcrossprod(X, X) 
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken 
+# 0.2144461 seconds for 10193x824
+# 6.047441 seconds for 163088x824
+# 15.70986 minutes for 1304704x824
+```
+
+```{r feature selection with FS2 new}
+start.time <- Sys.time()
+
+# load the c++ function
+Rcpp::sourceCpp('ranking_SVD_entropy.cpp')
+
+feat.idx <- CE_entropy_FS2_new(A, 250)
+
+# names of the features to keep
+names.CEi <- rownames(X)[feat.idx]
+
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 2.577435 mins for 1 feature (5.57 hours for 250 features)
+```
+Best features: 555 30 35 334 31 36 335 329 27 326 23 330 26 19 22 322 585 584 583 16 325 32 331 581 572 586 574 578 579 575 576 570 37 336 580 587 577 568 569 567 319 20 571 559 562 306 7 563 313 316 318 321 564 323 24 310 11 14 327 28 582 723 110 332 33 722 337 38 573 560 566 561 565 18 317 551 727 25 324 34 333 185 21 320 15 314 29 328 39 338 17 729 726 156 152 725 12 550 639 634 144 148 728 13 312 225 471 472 721 619 223 558 56 355 227 720 476 475 658 659 222 477 478 474 473 469 470 221 220 226 315 301 2 724 224 311 557 552 60 229 365 228 111 604 145 61 360 400 96 395 147 138 95 609 644 153 149 663 662 599 130 134 3 766 767 354 55 356 57 358 59 146 157 482 432 431 492 481 491 357 58 142 10 768 769 302 309 151 62 763 762 97 713 712 669 668 128 150 136 705 704 554 709 701 633 638 719 718 759 700 753 772 773 760 761 434 708 764 765 791 790 51 733 743 606 154 679 699 758 678 698 799 778 779 798 132 140 112 137 159 158 707 687 797 747 737 686 746 736 787
+Time difference of 5.263528 hours
+
+Before removing the features that are not in the profile data
+Best features: 310 568 30 35 343 31 36 344 338 27 335 23 339 26 19 22 331 673 112 598 597 596 16 32 340 334 594 585 599 587 591 592 588 589 583 37 345 593 600 590 581 582 580 328 20 584 572 575 315 7 576 322 325 327 330 577 332 24 319 11 14 336 28 595 743 341 33 742 346 38 586 573 579 574 578 115 18 326 564 747 25 333 34 342 193 21 329 15 323 29 337 39 347 17 749 746 160 164 745 12 563 652 647 152 156 13 321 748 233 484 485 741 231 571 632 56 364 235 740 489 488 230 676 677 490 491 487 486 482 483 229 228 234 324 744 232 309 2 320 570 565 671 110 418 60 237 374 617 674 236 153 61 369 409 96 404 678 117 113 116 155 146 95 622 657 161 157 683 682 612 138 142 3 786 787 363 55 365 57 367 59 154 165 495 445 444 505 494 504 366 58 10 150 788 789 311 318 159 62 783 782 97 733 732 689 688 136 158 144 725 724 567 729 721 646 651 739 738 779 720 773 792 793 780 781 447 728 784 785 811 810 118 679 114 675 672 419 111 119 420 421 51 753 763 619 162 699 719 778 698
+Time difference of 5.569898 hours
+
+```{r save}
+
+names.CEi %<>% as.data.frame() 
+names.CEi <- rename(names.CEi, feat.name = .)
+
+save(names.CEi, file="selected_features_10000cells.Rda")
+
+```
+
+

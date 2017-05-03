@@ -14,7 +14,7 @@ library(reshape2)
 library(foreach)
 library(doMC)
 library(stringr)
-library(tidyverse)
+#library(tidyverse)
 ```
 
 ## parameters
@@ -35,7 +35,7 @@ registerDoMC(7)
 
 ```{r import new data, message=FALSE}
 
-filename <- "Hit_pearson_5925.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
+filename <- "Hit_jaccard_50n_6225.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
 
@@ -75,7 +75,7 @@ sum.comp %<>%
   mutate_if(is.character, funs(toupper)) # same compound can be writen in upper and lower case and looks different
 dim(sum.comp)
 
-# keep only one componment (first one) (this is a safe way to perform)
+# keep only one compounds (first one) (this is a safe way to perform)
 sum.comp %<>%
   group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
   slice(1) %>%
@@ -104,7 +104,7 @@ moa %<>%
   ungroup
 
 # duplicate rows when multiple MOAs for one sample
-for (i in 1:dim(moa)[1]){
+for (i in 1:nrow(moa)){
   # if there are more than 1 moa associated
   if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
     t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])

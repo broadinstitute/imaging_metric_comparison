@@ -11,9 +11,9 @@ library(dplyr)
 library(ggplot2)
 
 
-files <- c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs_svd_FS1_250.rds", "Pf_Gustafsdottir_fs_svd_FS2_250.rds") #c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs.rds")
-feat.sel <- c(FALSE, TRUE, TRUE) #c(FALSE, TRUE)
-n.feat <- c(50, 30, 30) #c(50, 30)
+files <- c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_sc_FS2.rds") #c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs_svd_FS1_250.rds", "Pf_Gustafsdottir_fs_svd_FS2_250.rds") #c("Pf_Gustafsdottir.rds", "Pf_Gustafsdottir_fs.rds")
+feat.sel <- c(FALSE, TRUE) #c(FALSE, TRUE, TRUE) #c(FALSE, TRUE)
+n.feat <- c(50, 30) #c(50, 30, 30) c(50, 30)
 seeds <- seq(from = 1, to = 10, by = 1)
 
 hit.ratio <- c()
@@ -48,11 +48,11 @@ for(i in 1:length(files)){
   print(sd(tmp))
 }
 
-test <- data.frame(seed = rep(seeds, 6), 
+test <- data.frame(seed = rep(seeds, 4), #6), 
                    hit.ratio = hit.ratio[1,], 
-                   methods = rep(c("Pearson", "Pearson with FS1", "Pearson with FS2",
-                                   "Jaccard", "Jaccard with FS1", "Jaccard with FS2"), each = length(seeds)))
-#                   methods = rep(c("Pearson", "Pearson with feat. sel", "Jaccard", "Jaccard with feat. sel"), each = length(seeds)))
+#                   methods = rep(c("Pearson", "Pearson with FS1", "Pearson with FS2",
+#                                   "Jaccard", "Jaccard with FS1", "Jaccard with FS2"), each = length(seeds)))
+                   methods = rep(c("Pearson", "Pearson with single cell FS2", "Jaccard", "Jaccard with single cell FS2"), each = length(seeds)))
 
 #test <- data.frame(seed = rep(seeds, 2), 
 #                  hit.ratio = hit.ratio[1,],

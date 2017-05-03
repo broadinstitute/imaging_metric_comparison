@@ -154,8 +154,8 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   }
   
   #### uncomment if want to save file
-  pf %>%
-    saveRDS(filename.save)
+  #pf %>%
+  #  saveRDS(filename.save)
   
   end.time <- Sys.time() # 1.4 mins (without feature selection)
   time.taken <- end.time - start.time

@@ -26,7 +26,7 @@ library(tidyverse)
 #' @param nCPU number of CPU cores for parallelization
 #' @return hit ratio
   
-hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, N = 5000, seed = 42, nCPU = 7){ 
+hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, N = 5000, seed = 42, repository = "old", nCPU = 7){ 
   message(paste('runing Jaccard Hit Selection for file: ',filename, 'with number of features per set = ', n.feat))
   start.time <- Sys.time()
   
@@ -37,7 +37,7 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   set.seed(seed)
   
   ## Import data
-  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename)) # 7680x803
+  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -161,7 +161,7 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   time.taken <- end.time - start.time
   time.taken
 
-  message(paste('time to run function agglomerative clustering: ', time.taken))
+  message(paste('time to run: ', time.taken))
   
   return(hit.ratio)
 }

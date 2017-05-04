@@ -19,7 +19,7 @@ library(tidyverse)
 #' @param nCPU number of CPU cores for parallelization
 #' @return hit ratio
 
-hit_selection_correlation <- function(filename, cor.method = "pearson", feat.selected = FALSE, N = 5000, seed = 42, nCPU = 7){ 
+hit_selection_correlation <- function(filename, cor.method = "pearson", feat.selected = FALSE, N = 5000, seed = 42, nCPU = 7, repository = "old"){ 
   message(paste('runing Pearson Hit Selection for file: ',filename))
   
   # computational time
@@ -32,7 +32,7 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   set.seed(seed)
   
   ## Import data
-  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename)) # 7680x803
+  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -145,7 +145,7 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   time.taken <- end.time - start.time
   time.taken
   
-  message(paste('time to run function agglomerative clustering: ', time.taken))
+  message(paste('time to run: ', time.taken))
   
   return(hit.ratio)
 }

@@ -1,0 +1,217 @@
+---
+title: "alternative to odds ratio"
+output: html_document
+---
+
+Clean version of alternative to odds ratio!
+
+The problem of odds ratio is that it is not really interpretable. In order to solve this, this markdown aims at doing another statistical analysis. It looks at what % of compounds does the top X % of matching compounds contain at least 1 compound with the same annotated MOA.
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(foreach)
+library(doMC)
+library(reshape2)
+library(stringr)
+```
+
+## Parameters
+```{r parameters}
+# top percentage of matching compound.
+top.x <- 0.02 # 0.1 = 10%, 0.05 = 5%, 0.02 = 2%
+
+# for reproductibility
+seed <- 42
+set.seed(seed)
+
+# number of CPU cores for parallelization
+registerDoMC(7)
+```
+
+## Import data
+
+```{r import data, message=FALSE}
+
+filename <- "Hit_jaccard_50n_6225.rds" 
+#"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
+
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+
+profiles <- pf$data
+
+variables <- pf$feat_cols
+```
+
+## Metadata 
+
+Select compounds that have a MOA that is at least shared with another compounds. In final 88 MOAs are selected. For 412 compounds.
+moa size: 432x3 (because some compounds have more than 1 MOA)
+```{r MOAs}
+# import MOAs data
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) %>%
+  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
+# compounds name to upper case
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
+  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
+  unlist
+dim(moa)
+moa %<>% 
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+dim(moa)
+
+# duplicate rows when multiple MOAs for one sample
+for (i in 1:nrow(moa)){
+  # if there are more than 1 moa associated
+  if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
+    moa$MOA[i] <- t1[1]
+    new.row <- moa[i,]
+    new.row$MOA <- t1[2]
+    moa <- rbind(moa, new.row)
+  }
+  
+}
+dim(moa)
+
+# select only rows that have a MOA
+moa %<>% filter(!is.na(MOA)) 
+
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- table(moa$MOA) %>% as.data.frame() %>% filter(Freq != 1)
+moa %<>%  filter(MOA %in% n.MOA$Var1) # select compounds that have a shared MOA
+dim(moa)
+
+```
+
+Compound-ID: 959 unique (same number as in the other!)
+```{r compound-id}
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+id.cmpds <-
+  profiles %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  unique %>% # keep unique rows, one column can have same value
+  mutate_if(is.factor, as.character) %>% # if is a factor transform into a character
+  as.data.frame() %>% 
+  mutate_if(is.character, funs(toupper)) %>% # same compound can be writen in upper and lower case and looks different# be sure it is a dataframe
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+```
+
+```{r metadata}
+# metadata: compound, MOA, target, ID
+metadata <- 
+  moa %>%
+  left_join(., id.cmpds, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+
+# select only rows that have a BROAD_ID
+metadata %<>% filter(!is.na(Image_Metadata_BROAD_ID))
+```
+
+## Profiles of the compound
+
+Do the average along replicates.
+
+```{r compound profile}
+# average along replicate (keep only id and variables)
+pf.cmpds <-
+  profiles %>% 
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
+  #mutate_if(is.factor, as.character) %>%
+  ungroup %>%
+  as.data.frame()
+dim(pf.cmpds)
+```
+
+## Combination profile + metadata
+
+```{r profile + metadata}
+# Attention: since some compounds have more than one MOAs, few rows have same compounds name.
+pf.cmpd.meta <- 
+  metadata %>%
+  dplyr::left_join(., pf.cmpds, by = "Image_Metadata_BROAD_ID") %>%
+  as.data.frame
+dim(pf.cmpd.meta)
+
+```
+
+## Number of MOA in common for each compounds pair
+
+```{r}
+# binary indicator matrix of ID vs MOA 
+n.moa.ID <- 
+  pf.cmpd.meta %>%
+  select(MOA, Image_Metadata_BROAD_ID) %>%
+  table %>%
+  as.data.frame.matrix %>%
+  as.matrix
+
+# number of moa in common for each ID pairs
+n.moa.cmpd.pair <-
+  t(n.moa.ID)  %*% n.moa.ID %>% # calculate matrix compound ID - compound ID relation
+  melt(.) %>% # transform matrix into column
+  filter(Var1 != Var2)
+
+```
+
+## Correlation compound-compound 
+
+```{r correlation cmpd-cmpd}
+# remove duplicate compounds rows to calculate the correlation
+pf.cmpd.unique <- 
+  pf.cmpd.meta %>%
+  group_by(Image_Metadata_BROAD_ID) %>%
+  slice(1) %>%
+  ungroup %>%
+  as.data.frame
+row.names(pf.cmpd.unique) <- pf.cmpd.unique$Image_Metadata_BROAD_ID
+
+# correlation compound-compound
+cor.cmpd <-
+  pf.cmpd.unique[, variables] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+
+cor.cmpd.pair <- 
+  melt(cor.cmpd) %>%
+  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+  filter(cmpd1 != cmpd2) %>% # remove column were same compound
+  left_join(.,
+            n.moa.cmpd.pair,
+            by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
+
+```
+
+######## TODO: do a function 
+
+## Percentage
+Percentage of compound that have at least 1 compound with same MOA in the top 10% of correlation. 
+
+```{r knn}
+# calculate 
+top.moa.matching <- 
+  cor.cmpd.pair %>%
+  group_by(cmpd1) %>% # group by compound
+  arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+  filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
+  summarise(p = sum(value)/n()) %>% # percentage of similar moa
+  ungroup()
+
+final.number <-
+  top.moa.matching %>%
+  filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
+  summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
+  as.numeric()
+```
+
+
+
+
+

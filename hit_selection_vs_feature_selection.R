@@ -1,3 +1,6 @@
+# Script that calculate hit selection for different number of features selected with SVD-entropy FS2.
+# and plot of the result
+
 # uplodaing functions
 source("hit_selection_jaccard_distance_old_function.R")
 source("hit_selection_correlation_old_function.R")
@@ -61,9 +64,6 @@ test <- data.frame(feat.sel = rep(c(100, 200, 300, 400, 500, 600, 700, 799), 2),
                    hit.ratio = mean.hit.ratio[1,], 
                    sd = sd.hit.ratio[1,],
                    methods = rep(c("Pearson", "Jaccard"), each = length(filenames)))
-
-# remove feat.sel = 799
-test <- test %>% filter(feat.sel != 799)
 
 p <- ggplot(data = test, aes(x=feat.sel, y=hit.ratio, group=methods, color=methods)) + 
   geom_line() +

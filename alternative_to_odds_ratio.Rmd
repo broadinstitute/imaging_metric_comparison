@@ -44,14 +44,14 @@ profiles <- pf$data
 variables <- pf$feat_cols
 ```
 
-## Summary of the compound
+## Profiles of the compound
 
 Do the average along replicates.
 
 ```{r compound summary}
 # find the different compounds
-IDs <- distinct(profiles, Image_Metadata_BROAD_ID)
-dim(IDs)
+#IDs <- distinct(profiles, Image_Metadata_BROAD_ID)
+#dim(IDs)
 
 # mapping IDs-Compounds: give access to the compound knowing the IDs
 map.names <-

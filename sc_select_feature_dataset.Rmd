@@ -17,7 +17,7 @@ data.filename <- "Pf_Gustafsdottir.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", data.filename)) 
 
-features.filename <- "selected_features_10000cells.Rda"
+features.filename <- "selected_features_10000cells_100feat.Rda"
 
 features.name <- load(file.path("..", "..", "input", "BBBC022_2013", "single_cells", features.filename))
 
@@ -41,7 +41,7 @@ pf$feat_cols <- v
 
 # save dataset
 pf %>%
-  saveRDS("../../input/BBBC022_2013/single_cells/Pf_Gustafsdottir_sc_FS2.rds")
+  saveRDS("../../input/BBBC022_2013/single_cells/Pf_Gustafsdottir_sc_FS2_100.rds")
 
 
 ```

@@ -75,10 +75,6 @@ for (i in 1:nrow(moa)){
     moa <- rbind(moa, new.row)
   }
 }
-
-# select MOA that are appearing more than once (meaning at least two compounds are related to it)
-n.MOA <- table(moa$MOA) %>% as.data.frame() %>% filter(Freq != 1)
-moa %<>%  filter(MOA %in% n.MOA$Var1)
 ```
 
 Compound-ID: 959 unique (same number as in the other!)
@@ -101,6 +97,10 @@ metadata <-
 
 # select only rows that have a BROAD_ID
 metadata %<>% filter(!is.na(Image_Metadata_BROAD_ID))
+
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- table(metadata$MOA) %>% as.data.frame() %>% filter(Freq != 1)
+metadata %<>%  filter(MOA %in% n.MOA$Var1)
 ```
 
 ## Profiles of the compound

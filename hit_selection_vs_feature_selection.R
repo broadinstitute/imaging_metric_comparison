@@ -6,7 +6,6 @@ source("hit_selection_jaccard_distance_old_function.R")
 source("hit_selection_correlation_old_function.R")
 
 #library needed
-library(magrittr)
 library(dplyr)
 library(ggplot2)
 
@@ -75,3 +74,5 @@ p <- ggplot(data = test, aes(x=feat.sel, y=hit.ratio, group=methods, color=metho
 print(p)
 
 ggsave(filename = 'hit_ratio_vs_feat_sel.png', plot = p, width = 9, height = 6)
+
+save(test, file="data_feat_sel.Rda")

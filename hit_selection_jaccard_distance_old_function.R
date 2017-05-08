@@ -27,7 +27,8 @@ library(tidyverse)
 #' @return hit ratio
   
 hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, N = 5000, seed = 42, repository = "old", nCPU = 7){ 
-  message(paste('runing Jaccard Hit Selection for file: ',filename, 'with number of features per set = ', n.feat))
+  ########## message(paste('runing Jaccard Hit Selection for file: ',filename, 'with number of features per set = ', n.feat))
+  message(paste('Running Jaccard Hit selection...'))
   start.time <- Sys.time()
   
   # number of CPU cores for parallelization
@@ -36,8 +37,8 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   # seed for the reproducibility
   set.seed(seed)
   
-  ## Import data
-  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
+  ########## Import data
+  #pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803

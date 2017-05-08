@@ -51,52 +51,42 @@ moa size: 432x3 (because some compounds have more than 1 MOA)
 # import MOAs data
 moa <- 
   read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
-  mutate_if(is.factor, as.character) %>%
-  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
-# compounds name to upper case
-moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
-  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
-  unlist
-dim(moa)
+  mutate_if(is.factor, as.character) # has to do that to duplicate rows where multiple MOA
+
 moa %<>% 
+  filter(!is.na(MOA)) %>% # remove rows where moa = NA
+  rename(Image_Metadata_SOURCE_COMPOUND_NAME = Name) # rename compound name
+
+# remove duplicate compounds
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <- toupper(moa$Image_Metadata_SOURCE_COMPOUND_NAME) # put compound names in upper character (to make it comparable)
+moa %<>%
   group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
   slice(1) %>%
   ungroup
-dim(moa)
 
-# duplicate rows when multiple MOAs for one sample
+# duplicate rows where multiple MOA associated to one compounds
 for (i in 1:nrow(moa)){
   # if there are more than 1 moa associated
-  if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
+  if (str_detect(moa$MOA[i], ",")){
     t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
     moa$MOA[i] <- t1[1]
     new.row <- moa[i,]
     new.row$MOA <- t1[2]
     moa <- rbind(moa, new.row)
   }
-  
 }
-dim(moa)
-
-# select only rows that have a MOA
-moa %<>% filter(!is.na(MOA)) 
 
 # select MOA that are appearing more than once (meaning at least two compounds are related to it)
 n.MOA <- table(moa$MOA) %>% as.data.frame() %>% filter(Freq != 1)
-moa %<>%  filter(MOA %in% n.MOA$Var1) # select compounds that have a shared MOA
-dim(moa)
-
+moa %<>%  filter(MOA %in% n.MOA$Var1)
 ```
 
 Compound-ID: 959 unique (same number as in the other!)
 ```{r compound-id}
 # mapping IDs-Compounds: give access to the compound knowing the IDs
 id.cmpds <-
-  profiles %>%
+  pf$data %>%
   dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
-  unique %>% # keep unique rows, one column can have same value
-  mutate_if(is.factor, as.character) %>% # if is a factor transform into a character
-  as.data.frame() %>% 
   mutate_if(is.character, funs(toupper)) %>% # same compound can be writen in upper and lower case and looks different# be sure it is a dataframe
   group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
   slice(1) %>%
@@ -120,13 +110,12 @@ Do the average along replicates.
 ```{r compound profile}
 # average along replicate (keep only id and variables)
 pf.cmpds <-
-  profiles %>% 
+  pf$data %>%
+  filter(Image_Metadata_BROAD_ID %in% metadata$Image_Metadata_BROAD_ID) %>% # select ID that have a unique compound
   group_by(Image_Metadata_BROAD_ID) %>% 
   summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
-  #mutate_if(is.factor, as.character) %>%
   ungroup %>%
   as.data.frame()
-dim(pf.cmpds)
 ```
 
 ## Combination profile + metadata
@@ -138,7 +127,6 @@ pf.cmpd.meta <-
   dplyr::left_join(., pf.cmpds, by = "Image_Metadata_BROAD_ID") %>%
   as.data.frame
 dim(pf.cmpd.meta)
-
 ```
 
 ## Number of MOA in common for each compounds pair
@@ -163,18 +151,12 @@ n.moa.cmpd.pair <-
 ## Correlation compound-compound 
 
 ```{r correlation cmpd-cmpd}
-# remove duplicate compounds rows to calculate the correlation
-pf.cmpd.unique <- 
-  pf.cmpd.meta %>%
-  group_by(Image_Metadata_BROAD_ID) %>%
-  slice(1) %>%
-  ungroup %>%
-  as.data.frame
-row.names(pf.cmpd.unique) <- pf.cmpd.unique$Image_Metadata_BROAD_ID
+# keep track of ID of the compounds
+row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
 
 # correlation compound-compound
 cor.cmpd <-
-  pf.cmpd.unique[, variables] %>% 
+  pf.cmpds[, variables] %>% 
   as.matrix() %>%
   t() %>%
   cor()
@@ -186,7 +168,6 @@ cor.cmpd.pair <-
   left_join(.,
             n.moa.cmpd.pair,
             by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
-
 ```
 
 ######## TODO: do a function 

@@ -33,7 +33,7 @@ registerDoMC(7)
 
 ```{r import data, message=FALSE}
 
-filename <- "Hit_jaccard_50n_6225.rds" 
+filename <- "Hit_jaccard_30n_FS2_svd_5950.rds" 
 #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
@@ -116,6 +116,9 @@ pf.cmpds <-
   summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
   ungroup %>%
   as.data.frame()
+
+# keep track of ID of the compounds
+row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
 ```
 
 ## Combination profile + metadata
@@ -151,48 +154,136 @@ n.moa.cmpd.pair <-
 ## Correlation compound-compound 
 
 ```{r correlation cmpd-cmpd}
-# keep track of ID of the compounds
-row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
-
 # correlation compound-compound
 cor.cmpd <-
   pf.cmpds[, variables] %>% 
   as.matrix() %>%
   t() %>%
   cor()
-
-cor.cmpd.pair <- 
-  melt(cor.cmpd) %>%
-  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
-  filter(cmpd1 != cmpd2) %>% # remove column were same compound
-  left_join(.,
-            n.moa.cmpd.pair,
-            by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
 ```
-
-######## TODO: do a function 
 
 ## Percentage
 Percentage of compound that have at least 1 compound with same MOA in the top 10% of correlation. 
 
-```{r knn}
-# calculate 
-top.moa.matching <- 
-  cor.cmpd.pair %>%
-  group_by(cmpd1) %>% # group by compound
-  arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-  filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
-  summarise(p = sum(value)/n()) %>% # percentage of similar moa
-  ungroup()
+```{r function knn}
+top.percentage.matching.moa <- function(cor.cmpd, n.moa.cmpd.pair){
+  cor.cmpd.pair <- 
+    melt(cor.cmpd) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) %>% # remove column were same compound
+    left_join(.,
+              n.moa.cmpd.pair,
+              by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
+  
+  top.moa.matching <- 
+    cor.cmpd.pair %>%
+    group_by(cmpd1) %>% # group by compound
+    arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+    filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
+    summarise(p = sum(value)/n()) %>% # percentage of similar moa
+    ungroup()
 
-final.number <-
-  top.moa.matching %>%
-  filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
-  summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
-  as.numeric()
+  final.number <-
+    top.moa.matching %>%
+    filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
+    summarise(n = n()/nrow(top.moa.matching)) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
+    as.numeric()
+
+  return(final.number)
+}
+
+```
+
+```{r knn data}
+
+final.number <- top.percentage.matching.moa(cor.cmpd, n.moa.cmpd.pair)
+
 ```
 
 
+## Baseline
+1000x do random shuffles of rows -> give a way to compare result with randomness
+
+```{r baseline}
+start.time <- Sys.time()
+
+v <- rownames(cor.cmpd) # extract names of the rows and columns to shuffle
+
+set.seed(seed)
+N <- 1000 # number of time reproduce the same analysis
+seeds <- sample(1:10000, N, replace=F)
 
 
+random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
+  # for reproducibility
+  set.seed(seeds[i])
+  # randomly shuffle names of the compounds
+  t <- sample(v)
+  
+  # shuflle in the same random way the names of the rows and the columns
+  cor.comp.random <- cor.cmpd
+  rownames(cor.comp.random) <- t
+  colnames(cor.comp.random) <- t
+  
+  # knn for random
+  random.percent <- top.percentage.matching.moa(cor.comp.random, n.moa.cmpd.pair)
+}
 
+end.time <- Sys.time()
+time.taken <- end.time - start.time
+time.taken # 50 secs
+```
+
+## Results
+
+```{r mean and 95 quantile}
+# mean of the baseline
+mean.random <- mean(random.percent)
+
+# 95-quantile of the baseline
+quant <- quantile(random.percent, .95)
+
+#print result
+print("Mean of the baseline: ")
+mean.random
+print("95-quantile of the baseline: ")
+quant
+print("percentage of the data: ")
+final.number
+
+```
+
+
+## Results only with compounds that have at least one shared MOA (new results)
+
+For top 2%
+
+For Jaccard Hit selection with FS2 svd-entropy feature selection:
+Mean of the baseline: 0.1430
+95-quantile of the baseline: 0.1878
+percentage of the data: 0.3144
+
+For Jaccard Hit selection with findCorrelation feature selection:
+Mean of the baseline: 0.1505
+95-quantile of the baseline: 0.1901  
+percentage of the data: 0.2975
+
+For Jaccard Hit selection with no feature selection:
+Mean of the baseline: 0.1529
+95-quantile of the baseline: 0.1949  
+percentage of the data: 0.3475
+
+For Pearson Hit selection with FS2 svd-entropy feature selection:
+Mean of the baseline: 0.1680
+95-quantile of the baseline: 0.2095  
+percentage of the data: 0.3123
+
+For Pearson Hit selection with findCorrelation feature selection:
+Mean of the baseline: 0.1513
+95-quantile of the baseline: 0.1909  
+percentage of the data: 0.2839
+
+For Pearson Hit selection with no feature selection:
+Mean of the baseline: 0.1503
+95-quantile of the baseline: 0.1888  
+percentage of the data: 0.3004

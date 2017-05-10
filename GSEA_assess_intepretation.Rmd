@@ -1,0 +1,258 @@
+---
+title: "GSEA to assess intepretability"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+```
+
+## Parameters
+```{r parameters}
+
+
+```
+
+
+## Import data
+
+```{r import data, message=FALSE}
+
+filename <- "Hit_jaccard_50n_6225.rds" 
+#"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
+
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+
+```
+
+## Metadata 
+
+```{r MOAs}
+# import MOAs data
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) # has to do that to duplicate rows where multiple MOA
+
+moa %<>% 
+  filter(!is.na(MOA)) %>% # remove rows where moa = NA
+  rename(Image_Metadata_SOURCE_COMPOUND_NAME = Name) # rename compound name
+
+# remove duplicate compounds
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <- toupper(moa$Image_Metadata_SOURCE_COMPOUND_NAME) # put compound names in upper character (to make it comparable)
+moa %<>%
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+
+# duplicate rows where multiple MOA associated to one compounds
+for (i in 1:nrow(moa)){
+  # if there are more than 1 moa associated
+  if (str_detect(moa$MOA[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
+    moa$MOA[i] <- t1[1]
+    new.row <- moa[i,]
+    new.row$MOA <- t1[2]
+    moa <- rbind(moa, new.row)
+  }
+}
+```
+
+```{r compound-id}
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+id.cmpds <-
+  pf$data %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  mutate_if(is.character, funs(toupper)) %>% # same compound can be writen in upper and lower case and looks different# be sure it is a dataframe
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+```
+
+```{r metadata}
+# metadata: compound, MOA, target, ID
+metadata <-
+  id.cmpds %>%
+  left_join(., moa, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+# select only rows that have a MOA
+metadata %<>% filter(!is.na(MOA))
+
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- table(metadata$MOA) %>% as.data.frame() %>% filter(Freq != 1)
+metadata %<>%  filter(MOA %in% n.MOA$Var1)
+```
+
+## Profiles of the compound
+
+Do the average along replicates.
+
+```{r compound profile}
+# average along replicate (but first select ID for unique compound)
+pf.cmpds <-
+  pf$data %>%
+  filter(Image_Metadata_BROAD_ID %in% metadata$Image_Metadata_BROAD_ID) %>% # select ID that have a unique compound
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
+  ungroup %>%
+  as.data.frame()
+
+# keep track of ID of the compounds
+row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
+```
+
+## Combination profile + metadata
+
+```{r profile + metadata}
+# Attention: since some compounds have more than one MOAs, few rows have same compounds name.
+pf.cmpd.meta <- 
+  metadata %>%
+  dplyr::left_join(., pf.cmpds, by = "Image_Metadata_BROAD_ID") %>%
+  as.data.frame
+dim(pf.cmpd.meta)
+
+```
+
+## Number of MOA in common for each compounds pair
+
+```{r}
+# binary indicator matrix of ID vs MOA 
+n.moa.ID <- 
+  pf.cmpd.meta %>%
+  select(MOA, Image_Metadata_BROAD_ID) %>%
+  table %>%
+  as.data.frame.matrix %>%
+  as.matrix
+
+# number of moa in common for each ID pairs
+n.moa.cmpd.pair <-
+  t(n.moa.ID)  %*% n.moa.ID %>% # calculate matrix compound ID - compound ID relation
+  melt(.) %>% # transform matrix into column
+  filter(Var1 != Var2)
+
+```
+
+## Correlation compound-compound 
+
+```{r correlation cmpd-cmpd}
+# correlation compound-compound
+cor.cmpd <-
+  pf.cmpds[, pf$feat_cols] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+```
+
+```{r combining correlation with moa info}
+cor.cmpd.pair <- 
+    melt(cor.cmpd) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) %>% # remove column were same compound
+    left_join(.,
+              n.moa.cmpd.pair,
+              by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
+```
+
+1) Group by compound
+
+2) Sort by correlation
+
+3) plot for each compound (if value (number of moa) is strictly bigger than 0 increase 1/m, otherwise decrease 1/(N-m), where m is the number of compound that have a common moa and N is the total number of compound)
+
+
+```{r GSEA}
+test <- cor.cmpd.pair %>% 
+  group_by(cmpd1) %>% # group by compound
+  arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+  ungroup
+```
+
+
+```{r enrichment}
+enrichment_GSEA <- function(df, cmpd){
+  plotcmpd <- 
+    df %>% 
+    filter(cmpd1 %in% cmpd)
+  m <- plotcmpd %>% summarize(n = sum(value > 0))
+  m <- m$n
+  
+  plotcmpd %<>% 
+    mutate(p = ifelse(value == 0, -1.0/(nrow(plotcmpd)-m), 1.0/m)) %<>% 
+    mutate(cumsum=cumsum(p)) %>% 
+    mutate(id = row_number()) %>%
+    select(one_of(c("cumsum", "id")))
+
+  #row_0 <- data.frame(cumsum = 0.0, id = 0)
+
+  #plotcmpd <- bind_rows(row_0, plotcmpd)
+  
+  p <- data.frame(cmpd = cmpd, x_over_y = as.double(apply(plotcmpd, 2, which.max)[1])/nrow(plotcmpd))
+  
+  return(p)
+}
+
+all_cmpds <- unique(test$cmpd1)
+
+enrichment <- data.frame()
+
+for(i in all_cmpds){
+  p <- enrichment_GSEA(test, i)
+  enrichment <- bind_rows(enrichment, p)
+}
+
+# select rows that are bigger than a threshold
+
+```
+
+```{r function plot one compound}
+
+plot_GSEA <- function(df, cmpd){
+  plotcmpd <- 
+    df %>% 
+    filter(cmpd1 %in% cmpd)
+  m <- plotcmpd %>% summarize(n = sum(value > 0))
+  m <- m$n
+  
+  plotcmpd %<>% 
+    mutate(p = ifelse(value == 0, -1.0/(nrow(plotcmpd)-m), 1.0/m)) %<>% 
+    mutate(cumsum=cumsum(p)) %>% 
+    mutate(id = row_number()) %>%
+    select(one_of(c("cumsum", "id")))
+
+  #row_0 <- data.frame(cumsum = 0.0, id = 0)
+
+  #plotcmpd <- bind_rows(row_0, plotcmpd)
+  
+  p <- ggplot(data = plotcmpd, 
+            aes(x=id, y=cumsum)) + 
+    geom_line() + 
+    geom_point() +
+    ylim(-1, 1)
+  
+  return(p)
+}
+
+all_cmpds <- unique(test$cmpd1)
+
+for(i in all_cmpds){
+  p <- plot_GSEA(test, i)
+  print(p)
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

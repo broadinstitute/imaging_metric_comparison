@@ -39,6 +39,7 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   
   ########## Import data
   #pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
+  pf <- filename
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803

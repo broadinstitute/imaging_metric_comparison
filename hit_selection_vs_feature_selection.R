@@ -66,8 +66,9 @@ test <- data.frame(feat.sel = rep(c(100, 200, 300, 400, 500, 600, 700, 799), 2),
 
 p <- ggplot(data = test, aes(x=feat.sel, y=hit.ratio, group=methods, color=methods)) + 
   geom_line() +
-  geom_point()+
-  geom_errorbar(aes(ymin=hit.ratio-sd, ymax=hit.ratio+sd), width=.2,
+  geom_point() +
+  geom_errorbar(aes(ymin=hit.ratio-sd, ymax=hit.ratio+sd), 
+                width=.2,
                 position=position_dodge(0.05)) +
   labs(y = "hit ratio", x = "nb of features selected")
 

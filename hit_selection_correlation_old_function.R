@@ -34,6 +34,7 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   
   ############## Import data
   #pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
+  pf <- filename
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803

@@ -3,8 +3,8 @@ title: "Feature Selection SVD-entropy based on single cell"
 output: html_document
 ---
 
-Using FS2 SVD-entropy, select 250 features on single cells data.
-Select the same features on the profile data and evaluate the method using the criteria (hit ratiom odds ratio, Anne sugestion)
+Using FS2 SVD-entropy, select a specific number of features on single cells data.
+Select the same features on the profile data and evaluate the method using the criteria (hit ratiom odds ratio, Anne sugestion, ...)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -17,12 +17,6 @@ data.filename <- "Pf_Gustafsdottir.rds"
 
 pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", data.filename)) 
 
-features.filename <- "selected_features_10000cells_100feat.Rda"
-
-features.name <- load(file.path("..", "..", "input", "BBBC022_2013", "single_cells", features.filename))
-
-v <- names.CEi$feat.name %>% as.character()
-
 # difference of features name between old and new version:
 # Hoechst -> DNA, Ph_golgi -> AGP, Syto -> RNA
 pf$feat_cols <- str_replace(pf$feat_cols, "Hoechst", "DNA")
@@ -34,14 +28,43 @@ cl <- str_replace(cl, "Ph_golgi", "AGP")
 cl <- str_replace(cl, "Syto", "RNA")
 colnames(pf$data) <- cl
 
-# select the features
-pf$data %<>% select(one_of(v, pf$factor_cols))
+#features.filename <- "selected_features_10000cells_100feat.Rda"
+features.filenames <- list.files(path = "../../input/BBBC022_2013/selected_single_cell_zoom/feat_names/")
 
-pf$feat_cols <- v
+for(f in features.filenames){
+  feat.name <- load(file.path("..", "..", "input", "BBBC022_2013", "selected_single_cell_zoom", "feat_names", f))
+  
+  v <- names.CEinfeat$feat.name %>% as.character()
+  
+  # select the features
+  pf_sel <- pf
+  pf_sel$data %<>% select(one_of(v, pf_sel$factor_cols))
+  
+  pf_sel$feat_cols <- v
+  
+  # filename
+  out.filename <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/feat_selected/", 
+                        strsplit(f, "feat.Rda"),
+                        ".rds",
+                        sep = "")
+  
+  # save dataset
+  pf_sel %>%
+    saveRDS(out.filename)
+}
+
+#features.name <- load(file.path("..", "..", "input", "BBBC022_2013", "single_cells", features.filename))
+
+#v <- names.CEi$feat.name %>% as.character()
+
+# select the features
+#pf$data %<>% select(one_of(v, pf$factor_cols))
+
+#pf$feat_cols <- v
 
 # save dataset
-pf %>%
-  saveRDS("../../input/BBBC022_2013/single_cells/Pf_Gustafsdottir_sc_FS2_100.rds")
+#pf %>%
+#  saveRDS("../../input/BBBC022_2013/selected_single_cell_zoom/Pf_Gustafsdottir_sc_FS2_100.rds")
 
 
 ```

@@ -33,10 +33,10 @@ registerDoMC(7)
 
 ```{r import data, message=FALSE}
 
-filename <- "Hit_jaccard_30n_FS2_svd_5950.rds" 
+filename <- "Hit_pearson_random_100_5838.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds" 
 #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
 
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename))
 
 profiles <- pf$data
 
@@ -54,7 +54,7 @@ moa <-
   mutate_if(is.factor, as.character) # has to do that to duplicate rows where multiple MOA
 
 moa %<>% 
-  filter(!is.na(MOA)) %>% # remove rows where moa = NA
+  filter(!is.na(MOA_group)) %>% # remove rows where moa = NA
   rename(Image_Metadata_SOURCE_COMPOUND_NAME = Name) # rename compound name
 
 # remove duplicate compounds
@@ -67,11 +67,11 @@ moa %<>%
 # duplicate rows where multiple MOA associated to one compounds
 for (i in 1:nrow(moa)){
   # if there are more than 1 moa associated
-  if (str_detect(moa$MOA[i], ",")){
-    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
-    moa$MOA[i] <- t1[1]
+  if (str_detect(moa$MOA_group[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA_group[i], ",")[[1]])
+    moa$MOA_group[i] <- t1[1]
     new.row <- moa[i,]
-    new.row$MOA <- t1[2]
+    new.row$MOA_group <- t1[2]
     moa <- rbind(moa, new.row)
   }
 }
@@ -99,8 +99,8 @@ metadata <-
 metadata %<>% filter(!is.na(Image_Metadata_BROAD_ID))
 
 # select MOA that are appearing more than once (meaning at least two compounds are related to it)
-n.MOA <- table(metadata$MOA) %>% as.data.frame() %>% filter(Freq != 1)
-metadata %<>%  filter(MOA %in% n.MOA$Var1)
+n.MOA <- table(metadata$MOA_group) %>% as.data.frame() %>% filter(Freq != 1)
+metadata %<>%  filter(MOA_group %in% n.MOA$Var1)
 ```
 
 ## Profiles of the compound
@@ -138,7 +138,7 @@ dim(pf.cmpd.meta)
 # binary indicator matrix of ID vs MOA 
 n.moa.ID <- 
   pf.cmpd.meta %>%
-  select(MOA, Image_Metadata_BROAD_ID) %>%
+  select(MOA_group, Image_Metadata_BROAD_ID) %>%
   table %>%
   as.data.frame.matrix %>%
   as.matrix
@@ -163,7 +163,7 @@ cor.cmpd <-
 ```
 
 ## Percentage
-Percentage of compound that have at least 1 compound with same MOA in the top 10% of correlation. 
+Percentage of compound that have at least 1 compound with same MOA in the top X% of correlation. 
 
 ```{r function knn}
 top.percentage.matching.moa <- function(cor.cmpd, n.moa.cmpd.pair){
@@ -252,7 +252,155 @@ print("percentage of the data: ")
 final.number
 
 ```
+## Results with random features selection from 100 to 700 
+# Jaccard
 
+For 100:
+Mean of the baseline: 0.1468037
+95-quantile of the baseline: 0.1917808 
+percentage of the data: 0.3105023
+
+For 200:
+Mean of the baseline: 0.1465429
+95-quantile of the baseline: 0.1877551 
+percentage of the data: 0.3142857
+
+For 300:
+Mean of the baseline: 0.146032
+95-quantile of the baseline: 0.184 
+percentage of the data: 0.324
+
+For 400:
+Mean of the baseline: 0.1478452
+95-quantile of the baseline: 0.1882845 
+percentage of the data: 0.334728
+
+For 500:
+Mean of the baseline: 0.1600837
+95-quantile of the baseline: 0.2070485 
+percentage of the data: 0.3524229
+
+For 600:
+Mean of the baseline: 0.1574522
+95-quantile of the baseline: 0.2 
+percentage of the data: 0.3478261
+
+For 700:
+Mean of the baseline: 0.1591293
+95-quantile of the baseline: 0.2025862 
+percentage of the data: 0.3663793
+
+# Pearson
+
+For 100:
+Mean of the baseline: 0.1500418
+95-quantile of the baseline: 0.1924686 
+percentage of the data: 0.3138075
+
+For 200:
+Mean of the baseline: 0.1532301
+95-quantile of the baseline: 0.199115 
+percentage of the data: 0.2876106
+
+For 300:
+Mean of the baseline: 0.1507574
+95-quantile of the baseline: 0.1914894 
+percentage of the data: 0.3021277
+
+For 400:
+Mean of the baseline: 0.1486473
+95-quantile of the baseline: 0.186722 
+percentage of the data: 0.2987552
+
+For 500:
+Mean of the baseline: 0.1480805
+95-quantile of the baseline: 0.190678 
+percentage of the data: 0.3008475
+
+For 600:
+Mean of the baseline: 0.150089
+95-quantile of the baseline: 0.1949153 
+percentage of the data: 0.3050847
+
+For 700:
+Mean of the baseline: 0.148958
+95-quantile of the baseline: 0.1932773 
+percentage of the data: 0.2983193
+
+## Results with features selection from 100 to 700 SVD-entropy FS2
+# Jaccard
+
+For 100:
+Mean of the baseline: 0.0832695
+95-quantile of the baseline: 0.1276596 
+percentage of the data: 0.2624113
+
+For 200:
+Mean of the baseline: 0.138462
+95-quantile of the baseline: 0.1847826 
+percentage of the data: 0.3097826
+
+For 300:
+Mean of the baseline: 0.1477851
+95-quantile of the baseline: 0.1929825 
+percentage of the data: 0.2894737
+
+For 400:
+Mean of the baseline: 0.1545439
+95-quantile of the baseline: 0.1973684 
+percentage of the data: 0.3245614
+
+For 500:
+Mean of the baseline: 0.1599414
+95-quantile of the baseline: 0.2072072 
+percentage of the data: 0.3243243
+
+For 600:
+Mean of the baseline: 0.1432762
+95-quantile of the baseline: 0.1841004 
+percentage of the data: 0.3138075
+
+For 700:
+Mean of the baseline: 0.1555862
+95-quantile of the baseline: 0.1982759 
+percentage of the data: 0.3362069
+
+# Pearson
+
+For 100:
+Mean of the baseline: 0.09419728
+95-quantile of the baseline: 0.1428571 
+percentage of the data: 0.2312925
+
+For 200:
+Mean of the baseline: 0.1261397
+95-quantile of the baseline: 0.1731844 
+percentage of the data: 0.2849162
+
+For 300:
+Mean of the baseline: 0.1557892
+95-quantile of the baseline: 0.1973094 
+percentage of the data: 0.2959641
+
+For 400:
+Mean of the baseline: 0.1487215
+95-quantile of the baseline: 0.1898734 
+percentage of the data: 0.3037975
+
+For 500:
+Mean of the baseline: 0.1445021
+95-quantile of the baseline: 0.1851852 
+percentage of the data: 0.3004115
+
+For 600:
+Mean of the baseline: 0.1483191
+95-quantile of the baseline: 0.187234 
+percentage of the data: 0.293617
+
+For 700:
+Mean of the baseline: 0.14541
+95-quantile of the baseline: 0.1882845 
+percentage of the data: 0.3054393
 
 ## Results only with compounds that have at least one shared MOA (new results)
 

@@ -19,9 +19,15 @@ library(tidyverse)
 #' @param nCPU number of CPU cores for parallelization
 #' @return hit ratio
 
-hit_selection_correlation <- function(filename, cor.method = "pearson", feat.selected = FALSE, N = 5000, seed = 42, nCPU = 7, repository = "old"){ 
+hit_selection_correlation <- function(df, 
+                                      filename = "Hit_pearson", 
+                                      cor.method = "pearson", 
+                                      feat.selected = FALSE, 
+                                      N = 5000, 
+                                      seed = 42, 
+                                      nCPU = 7){ 
   ############ message(paste('runing Pearson Hit Selection for file: ',filename))
-  message(paste('Running Pearson Hit selection...'))
+  message(paste('Running Pearson Hit selection...', filename))
   
   # computational time
   start.time <- Sys.time()
@@ -34,7 +40,7 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   
   ############## Import data
   #pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
-  pf <- filename
+  pf <- df
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -117,7 +123,7 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   # ratio of strong median replicate correlation
   hit.ratio <- length(hit.select)/length(comp.cor.median)
   
-  message(paste('Hit ratio: ', hit.ratio))
+  #message(paste('Hit ratio: ', hit.ratio))
   
   ## Saving data
   
@@ -127,27 +133,30 @@ hit_selection_correlation <- function(filename, cor.method = "pearson", feat.sel
   
   # save new dataset
   if(feat.selected){
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_",
-                           "fs_svd_", 
-                           toString(round(hit.ratio*10000)), 
+    filename.save <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/hit_selected/Pearson/", 
+                           strsplit(filename, ".rds"),
+                           "_FS2_seed",
+                           seed,
                            ".rds", 
                            sep = "")
   } else {
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_pearson_",
-                           toString(round(hit.ratio*10000)), 
+    filename.save <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/hit_selected/Pearson/",
+                           strsplit(filename, ".rds"),
+                           "_seed_",
+                           seed,
                            ".rds", 
                            sep = "")
   }
   
   #### uncomment if want to save file
-  #pf %>%
-  #  saveRDS(filename.save)
+  pf %>%
+    saveRDS(filename.save)
   
   end.time <- Sys.time() # 1.4 mins (without feature selection)
   time.taken <- end.time - start.time
   time.taken
   
-  message(paste('time to run: ', time.taken))
+  #message(paste('time to run: ', time.taken))
   
   return(hit.ratio)
 }

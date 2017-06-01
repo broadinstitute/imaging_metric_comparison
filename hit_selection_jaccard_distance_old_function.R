@@ -18,7 +18,8 @@ library(tidyverse)
 #' $dist(x,y) = \frac{dist_J(A,B) + dist_J(C,D)}{2}$
 #' $dist_J(i,j) = \frac{|A \cup B| - |A \cap B|}{|A \cup B|}$ 
 #'
-#' @param filename name of the data file in '.rds'
+#' @param df dataframe in '.rds'
+#' @param filename name of the data file
 #' @param n.feat number of features in the sets
 #' @param feat.selected boolean if data as been feature selecteed
 #' @param N number of data to make the non replicate distance distribution
@@ -26,9 +27,15 @@ library(tidyverse)
 #' @param nCPU number of CPU cores for parallelization
 #' @return hit ratio
   
-hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, N = 5000, seed = 42, repository = "old", nCPU = 7){ 
+hit_selection_jaccard <- function(df, 
+                                  filename = "Hit_jaccard", 
+                                  n.feat = 50, 
+                                  feat.selected = FALSE, 
+                                  N = 5000, 
+                                  seed = 42,
+                                  nCPU = 7){ 
   ########## message(paste('runing Jaccard Hit Selection for file: ',filename, 'with number of features per set = ', n.feat))
-  message(paste('Running Jaccard Hit selection...'))
+  message(paste('Running Jaccard Hit selection...', filename))
   start.time <- Sys.time()
   
   # number of CPU cores for parallelization
@@ -39,7 +46,7 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   
   ########## Import data
   #pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", repository, filename)) # 7680x803
-  pf <- filename
+  pf <- df
   
   # Remove the negative control from the data
   pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -130,7 +137,7 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   # ratio of strong median replicate correlation
   hit.ratio <- length(hit.select)/length(comp.dist.median)
   
-  message(paste('Hit ratio: ', hit.ratio))
+  #message(paste('Hit ratio: ', hit.ratio))
   
   ## Saving data
     
@@ -140,30 +147,34 @@ hit_selection_jaccard <- function(filename, n.feat = 50, feat.selected = FALSE, 
   
   # save new dataset
   if(feat.selected){
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_jaccard_", 
+    filename.save <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/hit_selected/Jaccard/", 
+                           strsplit(filename, ".rds"),
+                           "_",
                            toString(n.feat), 
-                           "n_fs_svd_", 
-                           toString(round(hit.ratio*10000)), 
+                           "n_FS2_seed_",
+                           seed,
                            ".rds", 
                            sep = "")
   } else {
-    filename.save <- paste("../../input/BBBC022_2013/old/Hit_jaccard_", 
+    filename.save <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/hit_selected/Jaccard/",
+                           strsplit(filename, ".rds"),
+                           "_",
                            toString(n.feat), 
-                           "n_", 
-                           toString(round(hit.ratio*10000)), 
+                           "n_seed_",
+                           seed,
                            ".rds", 
                            sep = "")
   }
   
   #### uncomment if want to save file
-  #pf %>%
-  #  saveRDS(filename.save)
+  pf %>%
+    saveRDS(filename.save)
   
   end.time <- Sys.time() # 1.4 mins (without feature selection)
   time.taken <- end.time - start.time
   time.taken
 
-  message(paste('time to run: ', time.taken))
+  #message(paste('time to run: ', time.taken))
   
   return(hit.ratio)
 }

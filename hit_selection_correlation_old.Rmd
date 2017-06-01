@@ -30,7 +30,7 @@ library(tidyverse)
 ## Parameter
 ```{r parameter}
 # name of the data file
-filename <- "Pf_Gustafsdottir_fs.rds" 
+filename <- "Pf_Gustafsdottir_random_700.rds" #"Pf_Gustafsdottir_fs.rds" 
 #filename <- "Pf_Gustafsdottir.rds"
 
 # method of correlation: "pearson", "kendall", "spearman"
@@ -45,7 +45,7 @@ set.seed(42)
 ## Import data
 ```{r import data}
 # import data
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename)) # 7680x803
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename)) # 7680x803
 
 # Remove the negative control from the data
 pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -194,7 +194,7 @@ pf$data %<>%
 
 # save new dataset
 pf %>%
-  saveRDS("../../input/BBBC022_2013/old/Hit_pearson_5925.rds")
+  saveRDS("../../input/BBBC022_2013/single_cells/Hit_pearson_random_700_5963.rds")
 
 ```
 

@@ -30,8 +30,8 @@ library(tidyverse)
 ## Parameter
 ```{r parameter}
 # name of the data file
-filename <- "Pf_Gustafsdottir_random_700.rds" #"Pf_Gustafsdottir_fs.rds" 
-#filename <- "Pf_Gustafsdottir.rds"
+#filename <- "Pf_Gustafsdottir_random_700.rds" #"Pf_Gustafsdottir_fs.rds" 
+filename <- "Pf_Gustafsdottir.rds"
 
 # method of correlation: "pearson", "kendall", "spearman"
 cor.method <- "pearson"
@@ -201,3 +201,12 @@ pf %>%
 
 Remark: depending on the random distribution, the number of compounds selected can vary. 
 Maybe should find a way to reach stabilization.
+
+
+```{r plot}
+hist(random.replicate.cor.median,main="", xlim = range(-1, 1), col=rgb(0,0,1,1/4), xlab = "replicate correlation")
+hist(comp.cor.median, main="", xlab="Median Replicate Correlation", xlim = range(-1, 1), col=rgb(1,0,0,1/4), add=T)
+abline(v=thres, untf = FALSE)
+legend("topleft", c("Random Replicate Correlation", "Replicate Correlation", "Threshold"), col=c(rgb(0,0,1,1/4), rgb(1,0,0,1/4), rgb(0,0,0,1/4)), lwd=7, bty = 'n', border = NA, cex=0.9)
+
+```

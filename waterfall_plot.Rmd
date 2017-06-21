@@ -1,0 +1,213 @@
+---
+title: "Hash mark plot"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+```
+
+## Import data
+
+```{r import data, message=FALSE}
+
+filename <- "Hit_pearson_5925.rds" 
+
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+
+```
+
+## Metadata 
+
+```{r MOAs}
+# import MOAs data
+moa <- 
+  read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
+  mutate_if(is.factor, as.character) # has to do that to duplicate rows where multiple MOA
+
+moa %<>% 
+  filter(!is.na(MOA_group)) %>% # remove rows where moa = NA
+  rename(Image_Metadata_SOURCE_COMPOUND_NAME = Name) # rename compound name
+
+# remove duplicate compounds
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <- toupper(moa$Image_Metadata_SOURCE_COMPOUND_NAME) # put compound names in upper character (to make it comparable)
+moa %<>%
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+
+# duplicate rows where multiple MOA associated to one compounds
+for (i in 1:nrow(moa)){
+  # if there are more than 1 moa associated
+  if (str_detect(moa$MOA_group[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA_group[i], ",")[[1]])
+    moa$MOA_group[i] <- t1[1]
+    new.row <- moa[i,]
+    new.row$MOA_group <- t1[2]
+    moa <- rbind(moa, new.row)
+  }
+}
+```
+
+```{r compound-id}
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+id.cmpds <-
+  pf$data %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  mutate_if(is.character, funs(toupper)) %>% # same compound can be writen in upper and lower case and looks different# be sure it is a dataframe
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+```
+
+```{r metadata}
+# metadata: compound, MOA, target, ID
+metadata <-
+  id.cmpds %>%
+  left_join(., moa, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+# select only rows that have a MOA
+metadata %<>% filter(!is.na(MOA_group))
+
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- table(metadata$MOA_group) %>% as.data.frame() %>% filter(Freq > 3) #### filter(Freq != 1)
+metadata %<>%  filter(MOA_group %in% n.MOA$Var1)
+```
+
+## Profiles of the compound
+
+Do the average along replicates.
+
+```{r compound profile}
+# average along replicate (but first select ID for unique compound)
+pf.cmpds <-
+  pf$data %>%
+  filter(Image_Metadata_BROAD_ID %in% metadata$Image_Metadata_BROAD_ID) %>% # select ID that have a unique compound
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
+  ungroup %>%
+  as.data.frame()
+
+# keep track of ID of the compounds
+row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
+```
+
+## Combination profile + metadata
+
+```{r profile + metadata}
+# Attention: since some compounds have more than one MOAs, few rows have same compounds name.
+pf.cmpd.meta <- 
+  metadata %>%
+  dplyr::left_join(., pf.cmpds, by = "Image_Metadata_BROAD_ID") %>%
+  as.data.frame
+dim(pf.cmpd.meta)
+
+```
+
+## Number of MOA in common for each compounds pair
+
+```{r}
+# binary indicator matrix of ID vs MOA 
+n.moa.ID <- 
+  pf.cmpd.meta %>%
+  select(MOA_group, Image_Metadata_BROAD_ID) %>%
+  table %>%
+  as.data.frame.matrix %>%
+  as.matrix
+
+# number of moa in common for each ID pairs
+n.moa.cmpd.pair <-
+  t(n.moa.ID)  %*% n.moa.ID %>% # calculate matrix compound ID - compound ID relation
+  melt(.) %>% # transform matrix into column
+  filter(Var1 != Var2)
+
+```
+
+## Correlation compound-compound 
+
+```{r correlation cmpd-cmpd}
+# correlation compound-compound
+cor.cmpd <-
+  pf.cmpds[, pf$feat_cols] %>% 
+  as.matrix() %>%
+  t() %>%
+  cor()
+```
+
+```{r combining correlation with moa info}
+cor.cmpd.pair <- 
+    melt(cor.cmpd) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) %>% # remove column were same compound
+    full_join(.,
+              metadata,
+              by = c("cmpd1" = "Image_Metadata_BROAD_ID")) %>%
+    full_join(.,
+              metadata,
+              by = c("cmpd2" = "Image_Metadata_BROAD_ID")) %>%
+    mutate(value = ifelse(MOA_group.x == MOA_group.y, 1, 0))
+```
+
+```{r waterfall plot}
+waterfall_plot <- function(moa.name){
+  tA <- 
+    cor.cmpd.pair %>% 
+    group_by(cmpd1) %>% 
+    filter(MOA_group.x %in% moa.name) %>% 
+    select(-one_of("MOA_group.x", "MOA_group.y")) %>%
+    arrange(desc(value)) %>% 
+    group_by(cmpd1, cmpd2) %>% 
+    slice(1) %>%
+    ungroup %>%
+    select(-cmpd2) %>%
+    group_by(cmpd1) %>% 
+    arrange(desc(corr)) %>%
+    mutate(id = row_number()) %>%
+    ungroup
+
+  # sort the plot to do a waterfall (smaller rank to higher rank)
+  tA2 <-
+    tA %>%
+    group_by(Image_Metadata_SOURCE_COMPOUND_NAME.x) %>%
+    filter(value == 1) %>%
+    summarise(rank_corr = sum(id)) %>%
+    arrange(rank_corr)
+  tA$Image_Metadata_SOURCE_COMPOUND_NAME.x <- factor(tA$Image_Metadata_SOURCE_COMPOUND_NAME.x, levels=tA2$Image_Metadata_SOURCE_COMPOUND_NAME.x)
+  
+  wf <- ggplot(data = tA, aes(x = Image_Metadata_SOURCE_COMPOUND_NAME.x, y = id)) +
+    geom_tile(aes(fill = value)) +
+    scale_y_reverse() + 
+    labs(title = moa.name, x = "compound name", y = "compound ranked by correlation") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    guides(fill=FALSE)
+  
+  filename = paste("../results/manual/waterfall_", moa.name,".png", sep="")
+  
+  ggsave(filename, width = 7, height = 5)
+  
+  return(wf)
+}
+
+moa.list <- unique(cor.cmpd.pair$MOA_group.x)
+
+for(m in moa.list){
+  wf_plot <- waterfall_plot(m)
+  print(wf_plot)
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

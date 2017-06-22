@@ -35,7 +35,8 @@ hit_selection_jaccard <- function(pf,
                                   N = 5000, 
                                   seed = 42,
                                   nCPU = 7,
-                                  dir.save = "BBBC022_2013/selected_single_cells"){ 
+                                  dir.save = "BBBC022_2013/selected_single_cells",
+                                  dir.save.plus = "/hit_selected/random/Jaccard/"){ 
 
   message(paste('Running Jaccard Hit selection...', filename))
   start.time <- Sys.time()
@@ -146,7 +147,7 @@ hit_selection_jaccard <- function(pf,
   if(feat.selected){
     filename.save <- paste("../../input/",
                            dir.save,
-                           "/hit_selected/Jaccard/", 
+                           dir.save.plus, 
                            strsplit(filename, ".rds"),
                            "_",
                            toString(n.feat), 
@@ -157,7 +158,7 @@ hit_selection_jaccard <- function(pf,
   } else {
     filename.save <- paste("../../input/",
                            dir.save,
-                           "/hit_selected/Jaccard/",
+                           dir.save.plus,
                            strsplit(filename, ".rds"),
                            "_",
                            toString(n.feat), 

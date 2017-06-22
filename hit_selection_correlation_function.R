@@ -29,7 +29,8 @@ hit_selection_correlation <- function(pf,
                                       N = 5000, 
                                       seed = 42, 
                                       nCPU = 7,
-                                      dir.save = "BBBC022_2013/selected_single_cells"){ 
+                                      dir.save = "BBBC022_2013/selected_single_cells",
+                                      dir.save.plus = "/hit_selected/random/Pearson/"){ 
   message(paste('Running Pearson Hit selection...', filename))
   
   # computational time
@@ -133,7 +134,7 @@ hit_selection_correlation <- function(pf,
   if(feat.selected){
     filename.save <- paste("../../input/",
                            dir.save,
-                           "/hit_selected/Pearson/", 
+                           dir.save.plus, 
                            strsplit(filename, ".rds"),
                            "_FS2_seed",
                            seed,
@@ -142,7 +143,7 @@ hit_selection_correlation <- function(pf,
   } else {
     filename.save <- paste("../../input/",
                            dir.save,
-                           "/hit_selected/Pearson/",
+                           dir.save.plus,
                            strsplit(filename, ".rds"),
                            "_seed_",
                            seed,

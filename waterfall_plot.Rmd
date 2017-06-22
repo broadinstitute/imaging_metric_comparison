@@ -1,6 +1,8 @@
 ---
 title: "Hash mark plot"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -163,8 +165,9 @@ waterfall_plot <- function(moa.name){
     slice(1) %>%
     ungroup %>%
     select(-cmpd2) %>%
-    group_by(cmpd1) %>% 
-    arrange(desc(corr)) %>%
+    group_by(cmpd1) %>%
+    #mutate(corr2 = abs(corr)) %>% # TODO: REMOVE
+    arrange(desc(corr)) %>% #arrange(desc(corr2)) %>% #
     mutate(id = row_number()) %>%
     ungroup
 

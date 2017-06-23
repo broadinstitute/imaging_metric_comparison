@@ -1,0 +1,123 @@
+---
+title: "repurposing data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(dplyr)
+```
+
+The data are already preprossed (feature selection with findCorrelation was performed).
+52223 observations, 414 features, 22 metadata
+625 different MOA
+1552 different Metadata_pert_iname
+1571 different Metadata_broad_sample
+6 doses for each compounds
+136 plates, 384 wells in each
+12, 24 or 30 replicates for each compounds (be carefull without looking at doses...)
+for each doses: 2, 4, 5
+3264 DMSO
+
+
+```{r data}
+filename <- "../../input/repurposing/2016_04_01_a549_48hr_batch1_normalized.rds"
+Pf <- readRDS(filename)
+
+# concatenate name + dose -> unique name for each dose
+Pf %<>% 
+  mutate(Metadata_broad_sample_id = Metadata_broad_sample) 
+Pf %<>%
+  mutate(Metadata_broad_sample = paste(Metadata_broad_sample, Metadata_mmoles_per_liter, sep="@"))
+
+metadata <-
+  colnames(Pf) %>% str_subset("^Metadata_")
+
+variables <-
+  colnames(Pf) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+```
+
+```{r filtering}
+# there are two compounds that are removed because no MOA are associated and also DMSO
+Pf %<>% filter(!is.na(Metadata_moa))
+
+# remove "BRD-K60230970-001-10-0@19.9991253536431" because it is a toxic compounds
+Pf %<>% filter(Metadata_broad_sample != "BRD-K60230970-001-10-0@19.9991253536431")
+
+```
+
+```{r rank of dose}
+# add rank to the dose, because each compounds does not have the same doses
+rank <- Pf[!duplicated(Pf$Metadata_broad_sample),]
+
+rank %<>%
+  arrange(Metadata_mmoles_per_liter) %>%
+  group_by(Metadata_broad_sample_id) %>%
+  mutate(rank=row_number()) %>%
+  ungroup %>%
+  select(one_of("rank", "Metadata_broad_sample"))
+
+Pf %<>%
+  left_join(., Metadata_rank, by = "Metadata_broad_sample")
+
+```
+
+First before dealing with the doses, we can select the compounds that are showing a phenotype
+
+```{r selecting compounds showing a phenotype}
+
+# uplodaing functions
+source("hit_selection_correlation_function.R")
+
+hit <- hit_selection_correlation(Pf, 
+                                   n.replicate = 5, 
+                                   filename = "2016_04_01_a459",
+                                   cor.method = "pearson", 
+                                   feat.selected = F, 
+                                   seed = 42, 
+                                   N = 5000, 
+                                   dir.save = "repurposing",
+                                   dir.save.plus = "/hit_selected/Pearson/")
+
+
+```
+
+After hit selection: 37'486 observations (7632 compounds out of 9288) -> hit ratio = 0.8217
+
+Select all rank 1 for the doses, then rank 2, etc
+and do the correlation matrix by rank.
+
+```{r data hit selected}
+filename_dose <- "../../input/repurposing/hit_selected/Pearson/2016_04_01_a459_seed_42.rds"
+Pf_selected <- readRDS(filename_dose)
+
+metadata <-
+  colnames(Pf) %>% str_subset("^Metadata_")
+
+variables <-
+  colnames(Pf) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+```
+
+
+```{r dose}
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- 
+  table(Pf_selected$Metadata_moa) %>% 
+  as.data.frame() %>% filter(Freq != 1)
+metadata %<>%  filter(MOA_group %in% n.MOA$Var1)
+
+# calculate the compounds-compounds correlation matrix
+
+
+```
+
+
+
+
+
+
+
+
+
+

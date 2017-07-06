@@ -75,7 +75,7 @@ metadata <-
 metadata %<>% filter(!is.na(MOA_group))
 
 # select MOA that are appearing more than once (meaning at least two compounds are related to it)
-n.MOA <- table(metadata$MOA_group) %>% as.data.frame() %>% filter(Freq > 3) #### filter(Freq != 1)
+n.MOA <- table(metadata$MOA_group) %>% as.data.frame() %>% filter(Freq > 1) #### filter(Freq != 1)
 metadata %<>%  filter(MOA_group %in% n.MOA$Var1)
 ```
 

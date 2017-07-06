@@ -25,7 +25,7 @@ Compare the old and the new dataset, since it seems not to be the same.
 
 ```{r import old data}
 
-data.old <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Pf_Gustafsdottir.rds"))
+data.old <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old","Pf_Gustafsdottir.rds"))
 
 # Remove the negative control from the data
 data.old$data %<>%
@@ -75,7 +75,8 @@ Join the data together
 jn <-
   full_join(data.old$data, data.new, by=c("Plate"="Metadata_Plate", "Well"="Metadata_Well"))
 
-plot(jn$Nuclei_AreaShape_Area.x, jn$Nuclei_AreaShape_Area.y)
+plot(jn$Nuclei_AreaShape_Area.x, jn$Nuclei_AreaShape_Area.y, xlab = "Nuclei_AreaShape_Area old", ylab = "Nuclei_AreaShape_Area new")
+
 ```
 
 

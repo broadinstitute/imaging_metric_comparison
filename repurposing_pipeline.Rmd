@@ -225,7 +225,7 @@ waterfall_plot <- function(moa.name){
     filter(value == 1) %>%
     summarise(rank_corr = sum(id)) %>%
     arrange(rank_corr)
-  tA$Metadata_broad_sample.x <- factor(tA$Metadata_pert_iname.x, levels=tA2$Metadata_pert_iname.x)
+  tA$Metadata_pert_iname.x <- factor(tA$Metadata_pert_iname.x, levels=tA2$Metadata_pert_iname.x)
   
   
   

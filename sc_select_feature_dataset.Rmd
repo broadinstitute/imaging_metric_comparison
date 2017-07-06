@@ -32,9 +32,9 @@ colnames(pf$data) <- cl
 features.filenames <- list.files(path = "../../input/BBBC022_2013/selected_single_cell_zoom/feat_names/")
 
 for(f in features.filenames){
-  feat.name <- load(file.path("..", "..", "input", "BBBC022_2013", "selected_single_cell_zoom", "feat_names", f))
+  load(file.path("..", "..", "input", "BBBC022_2013", "selected_single_cell_zoom", "feat_names", f))
   
-  v <- names.CEinfeat$feat.name %>% as.character()
+  v <- names.CEi$feat.name %>% as.character()
   
   # select the features
   pf_sel <- pf
@@ -42,9 +42,11 @@ for(f in features.filenames){
   
   pf_sel$feat_cols <- v
   
-  # filename
+  # filename: BBBC022_fs_SVD_50.rds
   out.filename <- paste("../../input/BBBC022_2013/selected_single_cell_zoom/feat_selected/", 
-                        strsplit(f, "feat.Rda"),
+                        "BBBC022_fs_SVD_",
+                        as.character(length(v)),
+                        #strsplit(f, "feat.Rda"),
                         ".rds",
                         sep = "")
   

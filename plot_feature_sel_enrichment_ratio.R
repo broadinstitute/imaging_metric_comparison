@@ -67,38 +67,52 @@ for(i in 1:length(files)){
 }
 
 
+load(file = "../../input/BBBC022_2013/Profile_selected/enrichment_ratio/enr_ratio_feat_sel_findCorr.Rda") 
+final.enr.ratio %<>% bind_rows(., enr.ratio)
+
+load(file ="../../input/BBBC022_2013/single_cells_findCorrelation/enrichment_ratio/enr_ratio_feat_sel_findCorr_10000.Rda")
+final.enr.ratio %<>% bind_rows(., enr.ratio)
+
+load(file ="../../input/BBBC022_2013/single_cells_findCorrelation/enrichment_ratio/enr_ratio_feat_sel_findCorr_200000.Rda")
+final.enr.ratio %<>% bind_rows(., enr.ratio)
+
+load(file = "../../input/BBBC022_2013/Profile_without_fs/enrichment_ratio/enr_ratio_no_fs.Rda")
+enr.ratio[,4] <- 799
+final.enr.ratio %<>% bind_rows(., enr.ratio)
+
+
 ggplot(final.enr.ratio, aes(x=n.feat, y=ratio.mean, colour=method)) + 
   geom_errorbar(aes(ymin=ratio.mean-ratio.sd, ymax=ratio.mean+ratio.sd), width=.1) +
   geom_line() +
   geom_point() +
-  labs(y = "ratio", x = "nb features")
+  labs(y = "enrichment ratio", x = "number of features")
 
-
+ggsave("feat_sel_enrich_ratio_all.png", width = 12)
 
 
 
 
 
 ## data from 50 to 150 for random feature selection and for SVD on single cell
-load(file = "../Metric_Comparison/workspace/software/results/master/2017-06-01_20b07eb6/final_enr_ratio copy.Rda")
+#load(file = "../Metric_Comparison/workspace/software/results/master/2017-06-01_20b07eb6/final_enr_ratio copy.Rda")
 
-enr.ratio %<>% select(one_of("method", "ratio", "n.feat"))
+#enr.ratio %<>% select(one_of("method", "ratio", "n.feat"))
 
-tmp <- 
-  enr.ratio %>%
-  group_by(n.feat, method) %>%
-  summarise(ratio.mean = mean(ratio), 
-            ratio.sd = sd(ratio)/sqrt(n()))
+#tmp <- 
+#  enr.ratio %>%
+#  group_by(n.feat, method) %>%
+#  summarise(ratio.mean = mean(ratio), 
+#            ratio.sd = sd(ratio)/sqrt(n()))
 
-tmp <- tmp[c("method", "ratio.mean", "ratio.sd", "n.feat")]
-tmp[tmp == "Jaccard"] <- "Jaccard_SVD_single_cell"
-tmp[tmp == "Pearson"] <- "Pearson_SVD_single_cell"
+#tmp <- tmp[c("method", "ratio.mean", "ratio.sd", "n.feat")]
+#tmp[tmp == "Jaccard"] <- "Jaccard_SVD_single_cell"
+#tmp[tmp == "Pearson"] <- "Pearson_SVD_single_cell"
 
-final.enr.ratio %<>% bind_rows(., tmp)
+#final.enr.ratio %<>% bind_rows(., tmp)
 
-ggplot(final.enr.ratio, aes(x=n.feat, y=ratio.mean, colour=method)) + 
-  geom_errorbar(aes(ymin=ratio.mean-ratio.sd, ymax=ratio.mean+ratio.sd), width=.1) +
-  geom_line() +
-  geom_point() +
-  labs(y = "ratio", x = "nb features")
+#ggplot(final.enr.ratio, aes(x=n.feat, y=ratio.mean, colour=method)) + 
+#  geom_errorbar(aes(ymin=ratio.mean-ratio.sd, ymax=ratio.mean+ratio.sd), width=.1) +
+#  geom_line() +
+#  geom_point() +
+#  labs(y = "ratio", x = "nb features")
 

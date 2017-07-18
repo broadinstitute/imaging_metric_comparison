@@ -46,8 +46,8 @@ library(tidyverse)
 ## Parameter
 ```{r parameter}
 # name of the data file
-filename <- "Pf_Gustafsdottir_random_700.rds" #"Pf_Gustafsdottir_fs.rds" 
-#filename <- "Pf_Gustafsdottir.rds"
+#filename <- "Pf_Gustafsdottir_random_700.rds" #"Pf_Gustafsdottir_fs.rds" 
+filename <- "Pf_Gustafsdottir.rds"
 
 # number of data to make the non replicate correlation
 N <- 5000
@@ -66,7 +66,7 @@ n.feat <- 30
 ## Import data
 ```{r import data}
 # import data
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename)) # 7680x803
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename)) # 7680x803
 
 # Remove the negative control from the data
 pf$data <- filter(pf$data, !Image_Metadata_BROAD_ID %in% "") # 6400x803
@@ -269,5 +269,22 @@ pf$data %<>%
 pf %>%
   saveRDS("../../input/BBBC022_2013/single_cells/Hit_jaccard_30n_random_700_5994.rds")
 
+
+```
+
+
+
+
+```{r plot}
+type1 <- rep("Random Replicate Distance", length(random.replicate.dist.median))
+type2 <- rep("Replicate Distance", length(comp.dist.median))
+type <- c(type1, type2)
+distance <- c(random.replicate.dist.median, comp.dist.median)
+dat <- data.frame(distance = distance, type = type) 
+ggplot(dat, aes(x=distance, fill=type, y=..density../sum(..density..))) +
+  geom_histogram(binwidth=.01, alpha=.4, position="identity")	+ 
+  xlim(0, 1) + 
+  geom_vline(xintercept=thres) +
+  ylab("density")
 
 ```

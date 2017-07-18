@@ -85,7 +85,7 @@ profiles %<>%
 ## Parameter
 ```{r parameter}
 # method of distance matrix computation: "euclidean" (default), "maximum", "manhattan"
-dist.method <- "manhattan"
+dist.method <- "euclidean"
 # number of data to make the non replicate correlation
 N <- 5000
 
@@ -113,14 +113,21 @@ Calculate the distance of the replicate for each compound.
 
 ```{r distance}
 # loop over all IDs
-comp.dist.median <- foreach(i = 1:length(IDs$Metadata_broad_sample), .combine=cbind) %dopar% {
+comp.dist.median <- foreach(i = 1:length(IDs$Image_Metadata_BROAD_ID), .combine=cbind) %dopar% {
+  #filtering to choose only for one compound
+  #comp <-
+  #  filter(profiles, Metadata_broad_sample %in% IDs$Metadata_broad_sample[i])
+  #comp <-
+  #  comp[, variables] %>%
+  #  as.matrix()
+
   #filtering to choose only for one compound
   comp <-
-    filter(profiles, Metadata_broad_sample %in% IDs$Metadata_broad_sample[i])
+    filter(pf$data, Image_Metadata_BROAD_ID %in% IDs$Image_Metadata_BROAD_ID[i])
   comp <-
-    comp[, variables] %>%
+    comp[, pf$feat_cols] %>%
     as.matrix()
-
+  
   # distance of the features
   comp.dist <- dist(comp, method = dist.method) %>% as.matrix()
   
@@ -160,15 +167,26 @@ random.replicate.dist.median <- foreach(i = 1:N, .combine=cbind) %dopar% {
   
   # group by IDs
   # sample fixed number per group -> choose 4 replicates randomly from different group
+  #random.replicate <- 
+  #  profiles %>% 
+  #  group_by(Metadata_broad_sample) %>% 
+  #  sample_n(1, replace = FALSE) %>% 
+  #  ungroup(random.replicate)
+  #random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
+  
+#comp <- random.replicate[,variables] %>% 
+#    as.matrix()
   random.replicate <- 
-    profiles %>% 
-    group_by(Metadata_broad_sample) %>% 
+    pf$data %>% 
+    group_by(Image_Metadata_BROAD_ID) %>% 
     sample_n(1, replace = FALSE) %>% 
     ungroup(random.replicate)
   random.replicate <- sample_n(random.replicate, 4, replace = FALSE)
   
-comp <- random.replicate[,variables] %>% 
+  
+  comp <- random.replicate[,pf$feat_cols] %>% 
     as.matrix()
+  
   
   # distance of the features
   random.replicate.dist <- dist(comp, method = dist.method)
@@ -224,3 +242,17 @@ print(high.median.dist)
 
 - Difference between Pearson and Spearman correlation seem not to be very significant (no statistical test was performed).
 - Distance method compared to correlation metric gives a lower ratio of hit selection (more or less 10% lower).
+
+```{r plot}
+type1 <- rep("Random Replicate Distance", length(random.replicate.dist.median))
+type2 <- rep("Replicate Distance", length(comp.dist.median))
+type <- c(type1, type2)
+distance <- c(random.replicate.dist.median, comp.dist.median)
+dat <- data.frame(distance = distance, type = type) 
+ggplot(dat, aes(x=distance, fill=type, y=..density../sum(..density..))) +
+  geom_histogram(binwidth=5, alpha=.4, position="identity")	+ 
+  xlim(0, 400) + 
+  geom_vline(xintercept=thres) +
+  ylab("density")
+
+```

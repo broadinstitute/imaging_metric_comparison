@@ -58,7 +58,7 @@ hit_selection_jaccard <- function(pf,
   ## Distance of the data
   
   # load the c++ function
-  Rcpp::sourceCpp('jaccard_distance_function.cpp')
+  Rcpp::sourceCpp('jaccard_distance_function.cpp',rebuild = FALSE)
   
   # loop over all IDs and save the median of the distance
   comp.dist.median <- foreach(i = 1:length(IDs), .combine=cbind) %dopar% {

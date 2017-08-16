@@ -3,193 +3,203 @@ title: "alternative to odds ratio"
 output: html_document
 ---
 
-The problem of odds ratio is that it is not really interpretable. In order to solve this, this markdown aims at doing another statistical analysis. It looks at what % of compounds doest the top 10% of matching compounds contain at least 1 compound with the same annotated MOA.
+Clean version of alternative to odds ratio!
+
+The problem of odds ratio is that it is not really interpretable. In order to solve this, this markdown aims at doing another statistical analysis. It looks at what % of compounds does the top X % of matching compounds contain at least 1 compound with the same annotated MOA.
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(magrittr)
 library(dplyr)
-library(ggplot2)
-library(reshape2)
 library(foreach)
 library(doMC)
+library(reshape2)
 library(stringr)
-#library(tidyverse)
 ```
 
-## parameters
+## Parameters
 ```{r parameters}
-
-top.x <- 0.02 # top percentage of matching compound. 0.1 = 10%, 0.05 = 5%, 0.02 = 2%
+# top percentage of matching compound.
+top.x <- 0.02 # 0.1 = 10%, 0.05 = 5%, 0.02 = 2%
 
 # for reproductibility
 seed <- 42
-
 set.seed(seed)
 
 # number of CPU cores for parallelization
 registerDoMC(7)
 ```
 
-## import the data
+## Import data
 
-```{r import new data, message=FALSE}
+```{r import data, message=FALSE}
 
-filename <- "Hit_jaccard_50n_6225.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
+filename <- "Hit_pearson_random_100_5838.rds" #"Hit_jaccard_30n_FS2_svd_5950.rds" 
+#"Hit_jaccard_30n_FS2_svd_5950.rds", "Hit_jaccard_30n_fs_6206.rds", "Hit_jaccard_50n_6225.rds", "Hit_pearson_FS2_svd_6438.rds", "Hit_pearson_fs_5975.rds", "Hit_pearson_5925.rds"
 
-pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "single_cells", filename))
 
 profiles <- pf$data
 
 variables <- pf$feat_cols
 ```
 
-## Profiles of the compound
+## Metadata 
 
-Do the average along replicates.
-
-```{r compound summary}
-# find the different compounds
-#IDs <- distinct(profiles, Image_Metadata_BROAD_ID)
-#dim(IDs)
-
-# mapping IDs-Compounds: give access to the compound knowing the IDs
-map.names <-
-  profiles %>%
-  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
-  unique %>% # keep unique rows, one column can have same value
-  mutate_if(is.factor, as.character) %>% # if is a factor transform into a character
-  as.data.frame() # be sure it is a dataframe
-rownames(map.names) <- map.names$Image_Metadata_BROAD_ID # transform the names of the rows into the IDs
-
-# average along replicate (keep only id and variables)
-sum.comp <- 
-  profiles %>% 
-  group_by(Image_Metadata_BROAD_ID) %>% 
-  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
-  mutate_if(is.factor, as.character)
-
-# add column of compound and convert to uppercase (because some compounds same name but in lower/upper case)
-sum.comp %<>%
-  dplyr::left_join(., map.names, by = "Image_Metadata_BROAD_ID") %>% 
-  mutate_if(is.character, funs(toupper)) # same compound can be writen in upper and lower case and looks different
-dim(sum.comp)
-
-# keep only one compounds (first one) (this is a safe way to perform)
-sum.comp %<>%
-  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
-  slice(1) %>%
-  ungroup %>%
-  as.data.frame()
-dim(sum.comp)
-
-row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
-```
-
-## MOA data
-
-```{r import MOAs}
+Select compounds that have a MOA that is at least shared with another compounds. In final 88 MOAs are selected. For 412 compounds.
+moa size: 432x3 (because some compounds have more than 1 MOA)
+```{r MOAs}
 # import MOAs data
 moa <- 
   read.csv("../../input/BBBC022_2013/MOAs.csv", na.strings = c("", "NA")) %>%
-  mutate_if(is.factor, as.character) %>%
-  plyr::rename(c("Name" = "Image_Metadata_SOURCE_COMPOUND_NAME")) 
-# compounds name to upper case
-moa$Image_Metadata_SOURCE_COMPOUND_NAME <-
-  lapply(moa[, "Image_Metadata_SOURCE_COMPOUND_NAME"], stringr::str_to_upper) %>%
-  unlist
+  mutate_if(is.factor, as.character) # has to do that to duplicate rows where multiple MOA
+
 moa %<>% 
+  filter(!is.na(MOA_group)) %>% # remove rows where moa = NA
+  rename(Image_Metadata_SOURCE_COMPOUND_NAME = Name) # rename compound name
+
+# remove duplicate compounds
+moa$Image_Metadata_SOURCE_COMPOUND_NAME <- toupper(moa$Image_Metadata_SOURCE_COMPOUND_NAME) # put compound names in upper character (to make it comparable)
+moa %<>%
   group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
   slice(1) %>%
   ungroup
 
-# duplicate rows when multiple MOAs for one sample
+# duplicate rows where multiple MOA associated to one compounds
 for (i in 1:nrow(moa)){
   # if there are more than 1 moa associated
-  if (!is.na(moa$MOA[i]) & str_detect(moa$MOA[i], ",")){
-    t1 <- str_trim(str_split(moa$MOA[i], ",")[[1]])
-    moa$MOA[i] <- t1[1]
+  if (str_detect(moa$MOA_group[i], ",")){
+    t1 <- str_trim(str_split(moa$MOA_group[i], ",")[[1]])
+    moa$MOA_group[i] <- t1[1]
     new.row <- moa[i,]
-    new.row$MOA <- t1[2]
+    new.row$MOA_group <- t1[2]
     moa <- rbind(moa, new.row)
   }
-  
 }
-dim(moa)
-
 ```
 
-```{r}
-# joining moa and compounds information
-tmp <- moa %>%
-  dplyr::left_join(., sum.comp, by = "Image_Metadata_SOURCE_COMPOUND_NAME") %>%
-  filter(!is.na(MOA)) %>% # select only rows that have a MOA
-  filter(!is.na(Image_Metadata_BROAD_ID)) # select only rows that have a BROAD_ID
+Compound-ID: 959 unique (same number as in the other!)
+```{r compound-id}
+# mapping IDs-Compounds: give access to the compound knowing the IDs
+id.cmpds <-
+  pf$data %>%
+  dplyr::select(one_of(c("Image_Metadata_BROAD_ID","Image_Metadata_SOURCE_COMPOUND_NAME"))) %>% # select ID and Compound
+  mutate_if(is.character, funs(toupper)) %>% # same compound can be writen in upper and lower case and looks different# be sure it is a dataframe
+  group_by(Image_Metadata_SOURCE_COMPOUND_NAME) %>%
+  slice(1) %>%
+  ungroup
+```
 
-n.MOA <- table(tmp$MOA) %>% as.data.frame() %>% filter(Freq != 1) # select MOA that are not appearing only once
-tmp %<>%  filter(MOA %in% n.MOA$Var1) # select compounds that have a shared MOA
-dim(tmp)
+```{r metadata}
+# metadata: compound, MOA, target, ID
+metadata <- 
+  moa %>%
+  left_join(., id.cmpds, by = "Image_Metadata_SOURCE_COMPOUND_NAME")
+
+# select only rows that have a BROAD_ID
+metadata %<>% filter(!is.na(Image_Metadata_BROAD_ID))
+
+# select MOA that are appearing more than once (meaning at least two compounds are related to it)
+n.MOA <- table(metadata$MOA_group) %>% as.data.frame() %>% filter(Freq != 1)
+metadata %<>%  filter(MOA_group %in% n.MOA$Var1)
+```
+
+## Profiles of the compound
+
+Do the average along replicates.
+
+```{r compound profile}
+# average along replicate (keep only id and variables)
+pf.cmpds <-
+  pf$data %>%
+  filter(Image_Metadata_BROAD_ID %in% metadata$Image_Metadata_BROAD_ID) %>% # select ID that have a unique compound
+  group_by(Image_Metadata_BROAD_ID) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE)), -c(Image_Metadata_SOURCE_COMPOUND_NAME, Well, Plate)) %>% # mean along replicate
+  ungroup %>%
+  as.data.frame()
+
+# keep track of ID of the compounds
+row.names(pf.cmpds) <- pf.cmpds$Image_Metadata_BROAD_ID
+```
+
+## Combination profile + metadata
+
+```{r profile + metadata}
+# Attention: since some compounds have more than one MOAs, few rows have same compounds name.
+pf.cmpd.meta <- 
+  metadata %>%
+  dplyr::left_join(., pf.cmpds, by = "Image_Metadata_BROAD_ID") %>%
+  as.data.frame
+dim(pf.cmpd.meta)
+```
+
+## Number of MOA in common for each compounds pair
+
+```{r}
 # binary indicator matrix of ID vs MOA 
-comp_vs_moa <- tmp %>%
-  select(MOA, Image_Metadata_BROAD_ID) 
-comp_vs_moa <-  as.matrix(as.data.frame.matrix(table(comp_vs_moa)))
+n.moa.ID <- 
+  pf.cmpd.meta %>%
+  select(MOA_group, Image_Metadata_BROAD_ID) %>%
+  table %>%
+  as.data.frame.matrix %>%
+  as.matrix
 
 # number of moa in common for each ID pairs
-comp_vs_comp <-
-  t(comp_vs_moa)  %*% comp_vs_moa %>% # calculate matrix compound ID - compound ID relation
+n.moa.cmpd.pair <-
+  t(n.moa.ID)  %*% n.moa.ID %>% # calculate matrix compound ID - compound ID relation
   melt(.) %>% # transform matrix into column
   filter(Var1 != Var2)
+
 ```
 
-```{r}
+## Correlation compound-compound 
+
+```{r correlation cmpd-cmpd}
 # correlation compound-compound
-sum.comp %<>% filter(Image_Metadata_BROAD_ID %in% tmp$Image_Metadata_BROAD_ID) # remove compounds that do not have MOAs
-row.names(sum.comp) <- sum.comp$Image_Metadata_BROAD_ID
-cor.comp <-
-  sum.comp[, variables] %>% 
+cor.cmpd <-
+  pf.cmpds[, variables] %>% 
   as.matrix() %>%
   t() %>%
   cor()
-
-
-cor.compound.pair <- 
-  melt(cor.comp) %>%
-  rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
-  filter(cmpd1 != cmpd2) # remove column were same compound
-
-```
-
-```{r}
-cor.compound.pair %<>% 
-  mutate_if(is.factor, as.character) %>%
-  dplyr::left_join(., 
-                   mutate_if(comp_vs_comp, is.factor, as.character), 
-                   by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
-
-# replace NA with 0
-cor.compound.pair[is.na(cor.compound.pair)] <- 0
-
 ```
 
 ## Percentage
-Percentage of compound that have at least 1 compound with same MOA in the top 10% of correlation. 
+Percentage of compound that have at least 1 compound with same MOA in the top X% of correlation. 
 
-```{r knn}
-# calculate 
-top.moa.matching <- 
-  cor.compound.pair %>%
-  group_by(cmpd1) %>% # group by compound
-  arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-  filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
-  summarise(p = sum(value)/n()) %>% # percentage of similar moa
-  ungroup()
+```{r function knn}
+top.percentage.matching.moa <- function(cor.cmpd, n.moa.cmpd.pair){
+  cor.cmpd.pair <- 
+    melt(cor.cmpd) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) %>% # remove column were same compound
+    left_join(.,
+              n.moa.cmpd.pair,
+              by = c("cmpd1" = "Var1", "cmpd2" = "Var2"))
+  
+  top.moa.matching <- 
+    cor.cmpd.pair %>%
+    group_by(cmpd1) %>% # group by compound
+    arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
+    filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
+    summarise(p = sum(value)/n()) %>% # percentage of similar moa
+    ungroup()
 
-final.number <-
-  top.moa.matching %>%
-  filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
-  summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
-  as.numeric()
+  final.number <-
+    top.moa.matching %>%
+    filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
+    summarise(n = n()/nrow(top.moa.matching)) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
+    as.numeric()
+
+  return(final.number)
+}
+
 ```
+
+```{r knn data}
+
+final.number <- top.percentage.matching.moa(cor.cmpd, n.moa.cmpd.pair)
+
+```
+
 
 ## Baseline
 1000x do random shuffles of rows -> give a way to compare result with randomness
@@ -197,7 +207,7 @@ final.number <-
 ```{r baseline}
 start.time <- Sys.time()
 
-v <- rownames(cor.comp) # extract names of the rows and columns to shuffle
+v <- rownames(cor.cmpd) # extract names of the rows and columns to shuffle
 
 set.seed(seed)
 N <- 1000 # number of time reproduce the same analysis
@@ -211,36 +221,12 @@ random.percent <- foreach(i = 1:N, .combine=cbind) %dopar% {
   t <- sample(v)
   
   # shuflle in the same random way the names of the rows and the columns
-  cor.comp.random <- cor.comp
+  cor.comp.random <- cor.cmpd
   rownames(cor.comp.random) <- t
   colnames(cor.comp.random) <- t
   
-  cor.comp.random %<>% 
-    melt(.) %>%
-    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
-    filter(cmpd1 != cmpd2) # remove column were same compound
-  cor.comp.random %<>%
-    mutate_if(is.factor, as.character) %>%
-    dplyr::left_join(.,
-                     mutate_if(comp_vs_comp, is.factor, as.character),
-                     by = c("cmpd1" = "Var1", "cmpd2" = "Var2")) # add number of moa information.
-
-  # replace NA with 0
-  cor.comp.random[is.na(cor.comp.random)] <- 0
-  
-  top.moa.matching <- 
-    cor.comp.random %>%
-    group_by(cmpd1) %>% # group by compound
-    arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-    filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
-    summarise(p = sum(value)/n()) %>% # percentage of similar moa
-    ungroup()
-
-  random.percent <-
-    top.moa.matching %>%
-    filter(p > 0) %>% # p bigger than 0 mean that at least there is one moa in common
-    summarise(n = n()/dim(top.moa.matching)[1]) %>% # number of compound that have a least one MOA in common divided by the total number of compounds
-    as.numeric()
+  # knn for random
+  random.percent <- top.percentage.matching.moa(cor.comp.random, n.moa.cmpd.pair)
 }
 
 end.time <- Sys.time()
@@ -266,185 +252,186 @@ print("percentage of the data: ")
 final.number
 
 ```
-## Results only with compounds that have at least one shared MOA
+## Results with random features selection from 100 to 700 
+# Jaccard
 
-For top 2%
+For 100:
+Mean of the baseline: 0.1468037
+95-quantile of the baseline: 0.1917808 
+percentage of the data: 0.3105023
 
-For Jaccard Hit selection with FS2 svd-entropy feature selection:
-Mean of the baseline: 0.1435895
-95-quantile of the baseline: 0.1834061 
-percentage of the data: 0.30131
+For 200:
+Mean of the baseline: 0.1465429
+95-quantile of the baseline: 0.1877551 
+percentage of the data: 0.3142857
 
-For Jaccard Hit selection with findCorrelation feature selection:
-Mean of the baseline: 0.1518926
-95-quantile of the baseline: 0.1942149 
-percentage of the data: 0.2768595
+For 300:
+Mean of the baseline: 0.146032
+95-quantile of the baseline: 0.184 
+percentage of the data: 0.324
 
-For Jaccard Hit selection with no feature selection:
-Mean of the baseline: 0.1535932
-95-quantile of the baseline: 0.1991525 
-percentage of the data: 0.3347458
+For 400:
+Mean of the baseline: 0.1478452
+95-quantile of the baseline: 0.1882845 
+percentage of the data: 0.334728
 
-For Pearson Hit selection with FS2 svd-entropy feature selection:
-Mean of the baseline: 0.1679763
-95-quantile of the baseline: 0.2094862 
-percentage of the data: 0.3003953
+For 500:
+Mean of the baseline: 0.1600837
+95-quantile of the baseline: 0.2070485 
+percentage of the data: 0.3524229
 
-For Pearson Hit selection with findCorrelation feature selection:
-Mean of the baseline: 0.150911
+For 600:
+Mean of the baseline: 0.1574522
+95-quantile of the baseline: 0.2 
+percentage of the data: 0.3478261
+
+For 700:
+Mean of the baseline: 0.1591293
+95-quantile of the baseline: 0.2025862 
+percentage of the data: 0.3663793
+
+# Pearson
+
+For 100:
+Mean of the baseline: 0.1500418
+95-quantile of the baseline: 0.1924686 
+percentage of the data: 0.3138075
+
+For 200:
+Mean of the baseline: 0.1532301
+95-quantile of the baseline: 0.199115 
+percentage of the data: 0.2876106
+
+For 300:
+Mean of the baseline: 0.1507574
+95-quantile of the baseline: 0.1914894 
+percentage of the data: 0.3021277
+
+For 400:
+Mean of the baseline: 0.1486473
+95-quantile of the baseline: 0.186722 
+percentage of the data: 0.2987552
+
+For 500:
+Mean of the baseline: 0.1480805
+95-quantile of the baseline: 0.190678 
+percentage of the data: 0.3008475
+
+For 600:
+Mean of the baseline: 0.150089
 95-quantile of the baseline: 0.1949153 
-percentage of the data: 0.2754237
+percentage of the data: 0.3050847
 
-For Pearson Hit selection with no feature selection:
-Mean of the baseline: 0.1495665
-95-quantile of the baseline: 0.1888412 
-percentage of the data: 0.2961373
+For 700:
+Mean of the baseline: 0.148958
+95-quantile of the baseline: 0.1932773 
+percentage of the data: 0.2983193
 
+## Results with features selection from 100 to 700 SVD-entropy FS2
+# Jaccard
 
-## Results only with compounds that have at least one MOA
+For 100:
+Mean of the baseline: 0.0832695
+95-quantile of the baseline: 0.1276596 
+percentage of the data: 0.2624113
+
+For 200:
+Mean of the baseline: 0.138462
+95-quantile of the baseline: 0.1847826 
+percentage of the data: 0.3097826
+
+For 300:
+Mean of the baseline: 0.1477851
+95-quantile of the baseline: 0.1929825 
+percentage of the data: 0.2894737
+
+For 400:
+Mean of the baseline: 0.1545439
+95-quantile of the baseline: 0.1973684 
+percentage of the data: 0.3245614
+
+For 500:
+Mean of the baseline: 0.1599414
+95-quantile of the baseline: 0.2072072 
+percentage of the data: 0.3243243
+
+For 600:
+Mean of the baseline: 0.1432762
+95-quantile of the baseline: 0.1841004 
+percentage of the data: 0.3138075
+
+For 700:
+Mean of the baseline: 0.1555862
+95-quantile of the baseline: 0.1982759 
+percentage of the data: 0.3362069
+
+# Pearson
+
+For 100:
+Mean of the baseline: 0.09419728
+95-quantile of the baseline: 0.1428571 
+percentage of the data: 0.2312925
+
+For 200:
+Mean of the baseline: 0.1261397
+95-quantile of the baseline: 0.1731844 
+percentage of the data: 0.2849162
+
+For 300:
+Mean of the baseline: 0.1557892
+95-quantile of the baseline: 0.1973094 
+percentage of the data: 0.2959641
+
+For 400:
+Mean of the baseline: 0.1487215
+95-quantile of the baseline: 0.1898734 
+percentage of the data: 0.3037975
+
+For 500:
+Mean of the baseline: 0.1445021
+95-quantile of the baseline: 0.1851852 
+percentage of the data: 0.3004115
+
+For 600:
+Mean of the baseline: 0.1483191
+95-quantile of the baseline: 0.187234 
+percentage of the data: 0.293617
+
+For 700:
+Mean of the baseline: 0.14541
+95-quantile of the baseline: 0.1882845 
+percentage of the data: 0.3054393
+
+## Results only with compounds that have at least one shared MOA (new results)
+
+For top 2%
 
 For Jaccard Hit selection with FS2 svd-entropy feature selection:
-Mean of the baseline: 0.103539
-95-quantile of the baseline: 0.1355932 
-percentage of the data: 0.2305085
+Mean of the baseline: 0.1430
+95-quantile of the baseline: 0.1878
+percentage of the data: 0.3144
 
 For Jaccard Hit selection with findCorrelation feature selection:
-For top 2%
-Mean of the baseline: 0.1296275
-95-quantile of the baseline: 0.1666667 
-percentage of the data: 0.2254902
+Mean of the baseline: 0.1505
+95-quantile of the baseline: 0.1901  
+percentage of the data: 0.2975
 
 For Jaccard Hit selection with no feature selection:
-For top 2%
-Mean of the baseline: 0.1265017
-95-quantile of the baseline: 0.1584158 
-percentage of the data: 0.2673267
+Mean of the baseline: 0.1529
+95-quantile of the baseline: 0.1949  
+percentage of the data: 0.3475
 
 For Pearson Hit selection with FS2 svd-entropy feature selection:
-For top 2%
-Mean of the baseline: 0.1198308
-95-quantile of the baseline: 0.1507692 
-percentage of the data: 0.2276923
+Mean of the baseline: 0.1680
+95-quantile of the baseline: 0.2095  
+percentage of the data: 0.3123
 
 For Pearson Hit selection with findCorrelation feature selection:
-For top 2%
-Mean of the baseline: 0.113431
-95-quantile of the baseline: 0.1481481 
-percentage of the data: 0.2188552
+Mean of the baseline: 0.1513
+95-quantile of the baseline: 0.1909  
+percentage of the data: 0.2839
 
 For Pearson Hit selection with no feature selection:
-For top 2%
-Mean of the baseline: 0.1159517
-95-quantile of the baseline: 0.1517241 
-percentage of the data: 0.2310345
-
-## Results with all compounds
-
-For Jaccard Hit selection with FS2 svd-entropy feature selection:
-
-For top 10%
-Mean of the baseline: 0.1099379
-95-quantile of the baseline: 0.1230937
-percentage for the data: 0.1416122
-
-For top 5%
-Mean of the baseline: 0.06889542
-95-quantile of the baseline: 0.08061002
-percentage for the data: 0.09912854
-
-For top 2%
-Mean of the baseline: 0.03328322
-95-quantile of the baseline: 0.04357298
-percentage for the data: 0.07625272
-
-
-For Jaccard Hit selection with no feature selection:
-
-For top 10%
-Mean of the baseline: 0.1123535
-95-quantile of the baseline: 0.1240876 
-percentage of the data: 0.1397289
-
-For top 5%
-Mean of the baseline: 0.07259645
-95-quantile of the baseline: 0.08342023 
-percentage of the data: 0.1063608
-
-For top 2%
-Mean of the baseline: 0.0360219
-95-quantile of the baseline: 0.04593326 
-percentage of the data: 0.08237748
-
-
-For Jaccard Hit selection with findCorrelation feature selection:
-
-For top 10%
-Mean of the baseline: 0.1162179
-95-quantile of the baseline: 0.1293014 
-percentage of the data: 0.1334724
-
-For top 5%
-Mean of the baseline: 0.07534515
-95-quantile of the baseline: 0.08863399 
-percentage of the data: 0.1001043
-
-For top 2%
-Mean of the baseline: 0.03754119
-95-quantile of the baseline: 0.04900938 
-percentage of the data: 0.0729927
-
-For Pearson Hit selection with FS2 svd-entropy feature selection:
-
-For top 10%
-Mean of the baseline: 0.1164171
-95-quantile of the baseline: 0.1286432 
-percentage of the data: 0.1477387
-
-For top 5%
-Mean of the baseline: 0.07525126
-95-quantile of the baseline: 0.08648241 
-percentage of the data: 0.1005025
-
-For top 2%
-Mean of the baseline: 0.03626935
-95-quantile of the baseline: 0.04723618 
-percentage of the data: 0.07437186
-
-
-For Pearson Hit selection with no feature selection:
-
-For top 10%
-Mean of the baseline: 0.1133042
-95-quantile of the baseline: 0.1269147 
-percentage of the data: 0.1367615
-
-For top 5%
-Mean of the baseline: 0.07308753
-95-quantile of the baseline: 0.08643326 
-percentage of the data: 0.09956236
-
-For top 2%
-Mean of the baseline: 0.03617724
-95-quantile of the baseline: 0.04704595 
-percentage of the data: 0.07330416
-
-
-For Pearson Hit selection with findCorrelation feature selection:
-
-For top 10%
-Mean of the baseline: 0.1161148
-95-quantile of the baseline: 0.1289274 
-percentage of the data: 0.1386782
-
-For top 5%
-Mean of the baseline: 0.07555471
-95-quantile of the baseline: 0.08884074 
-percentage of the data: 0.09967497
-
-For top 2%
-Mean of the baseline: 0.03697616
-95-quantile of the baseline: 0.04772481 
-percentage of the data: 0.07258938
-
-
-
+Mean of the baseline: 0.1503
+95-quantile of the baseline: 0.1888  
+percentage of the data: 0.3004

@@ -20,7 +20,6 @@ library(tidyverse)
 #' @param df dataframe in '.rds'
 #' @param filename name of the data file
 #' @param n.feat number of features in the sets
-#' @param feat.selected boolean if data as been feature selecteed
 #' @param n.replicate number of replicate for the basline (random comparison)
 #' @param N number of data to make the non replicate distance distribution
 #' @param seed seed number for reproductibility
@@ -28,15 +27,14 @@ library(tidyverse)
 #' @return hit ratio
 
 hit_selection_jaccard <- function(pf, 
-                                  filename = "Hit_jaccard", 
+                                  filename = "Jaccard",
                                   n.feat = 50, 
-                                  feat.selected = FALSE, 
                                   n.replicate = 4,
                                   N = 5000, 
                                   seed = 42,
                                   nCPU = 7,
                                   dir.save = "BBBC022_2013/selected_single_cells",
-                                  dir.save.plus = "/hit_selected/random/Jaccard/"){ 
+                                  dir.save.plus = "/hit_selected/Jaccard/"){ 
 
   message(paste('Running Jaccard Hit selection...', filename))
   start.time <- Sys.time()
@@ -144,19 +142,7 @@ hit_selection_jaccard <- function(pf,
     filter(Metadata_broad_sample %in% hit.select.IDs)
   
   # save new dataset
-  if(feat.selected){
-    filename.save <- paste("../../input/",
-                           dir.save,
-                           dir.save.plus, 
-                           strsplit(filename, ".rds"),
-                           "_",
-                           toString(n.feat), 
-                           "n_FS2_seed_",
-                           seed,
-                           ".rds", 
-                           sep = "")
-  } else {
-    filename.save <- paste("../../input/",
+  filename.save <- paste("../../input/",
                            dir.save,
                            dir.save.plus,
                            strsplit(filename, ".rds"),
@@ -166,7 +152,6 @@ hit_selection_jaccard <- function(pf,
                            seed,
                            ".rds", 
                            sep = "")
-  }
   
   #### uncomment if want to save file
   pf %>%

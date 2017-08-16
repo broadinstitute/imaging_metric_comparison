@@ -1,0 +1,96 @@
+---
+title: "test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# all usefull libraries
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(foreach)
+library(doMC)
+library(stringr)
+library(tidyverse)
+```
+
+```{r import data with feature selection, message=FALSE, eval=FALSE}
+filename <- "Pf_Gustafsdottir.rds"
+profiles <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
+profiles <- profiles$data
+
+profiles %<>% rename(Metadata_plate = Plate, Metadata_well = Well, Metadata_BROAD_sample = Image_Metadata_BROAD_ID,  Metadata_SOURCE_COMPOUND_NAME = Image_Metadata_SOURCE_COMPOUND_NAME)
+variables <-
+  names(profiles) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_") # nfeat
+
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_") # metadata
+
+# add column wheather DMSO or treatment
+profiles %<>% mutate(Metadata_broad_sample_type = ifelse(Metadata_BROAD_sample == "", "control", "trt"))
+metadata <-
+  names(profiles) %>% str_subset("^Metadata_") # metadata
+```
+
+
+```{r compound check}
+zero_vector <- rep(0, length(variables))
+zero_vector.2 <- profiles %>% select(one_of(variables)) %>% summarise_each(funs(mean)) %>% unlist
+zero_vector.3 <- profiles %>% select(one_of(variables)) %>% summarise_each(funs(median)) %>% unlist
+
+dist <- apply(profiles %>% select(one_of(variables)), 1, function(x) sqrt(sum((x-zero_vector)^2)))
+dist.2 <- apply(profiles %>% select(one_of(variables)), 1, function(x) sqrt(sum((x-zero_vector.2)^2)))
+dist.3 <- apply(profiles %>% select(one_of(variables)), 1, function(x) sqrt(sum((x-zero_vector.3)^2)))
+
+dat <- data.frame(distance = dist, type = profiles$Metadata_broad_sample_type)
+dat2 <- data.frame(distance = dist.2, type = profiles$Metadata_broad_sample_type)
+dat3 <- data.frame(distance = dist.3, type = profiles$Metadata_broad_sample_type)
+
+library(plyr)
+cdat <- ddply(dat, "type", summarise, rating.mean=mean(distance))
+cdat
+
+# Overlaid histograms with means
+ggplot(dat, aes(x=distance, fill=type, y=..density../sum(..density..))) +
+  geom_histogram(binwidth=5, alpha=.4, position="identity")	+ 
+  xlim(0, 500) +
+  geom_vline(data=cdat, aes(xintercept=rating.mean,  colour=type),
+               linetype="dashed", size=0.5) +
+  ggtitle("Euclidean distance to center") +
+  ylab("density")
+
+library(plyr)
+cdat2 <- ddply(dat2, "type", summarise, rating.mean=mean(distance))
+cdat2
+
+# Overlaid histograms with means
+ggplot(dat2, aes(x=distance, fill=type, y=..density../sum(..density..))) +
+  geom_histogram(binwidth=5, alpha=.4, position="identity")	+ 
+  xlim(0, 500) +
+  geom_vline(data=cdat2, aes(xintercept=rating.mean,  colour=type),
+               linetype="dashed", size=0.5) +
+  ggtitle("Euclidean distance to center") +
+  ylab("density")
+
+library(plyr)
+cdat3 <- ddply(dat3, "type", summarise, rating.mean=mean(distance))
+cdat3
+
+# Overlaid histograms with means
+ggplot(dat3, aes(x=distance, fill=type, y=..density../sum(..density..))) +
+  geom_histogram(binwidth=5, alpha=.4, position="identity")	+ 
+  xlim(0, 500) +
+  geom_vline(data=cdat, aes(xintercept=rating.mean,  colour=type),
+               linetype="dashed", size=0.5) +
+  ggtitle("Euclidean distance to center") +
+  ylab("density")
+
+thres <- quantile(dat %>% filter(type == "control") %>% select(one_of(c("distance"))) %>% unlist, .95)
+print(thres)
+
+tmp <- dat %>% filter(type == "trt") %>% select(one_of(c("distance"))) %>% unlist
+inds <- which(tmp > thres)
+
+percentage_selected <- length(inds)/length(tmp) # arount 22%
+
+```

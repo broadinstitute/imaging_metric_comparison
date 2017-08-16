@@ -60,7 +60,7 @@ double calculate_entropy_new(mat A) {
 Simple Ranking:
  select mc features according to the highest ranking order of their CE values
  */
-/*
+
 //' Calculate the entropy contribution of a matrix based on SVD
 //' @param A dataset mxn (m features and n observations) 
 //' @return entropy contribution vector
@@ -69,21 +69,22 @@ NumericVector CE_entropy_SR(NumericMatrix A){
   // convert into matrix (armadillo)
   mat Amat(A.begin(), A.nrow(), A.ncol(), false);
   // total entropy
-	double E = calculate_entropy(Amat);
+	double E = calculate_entropy_new(Amat);
   // Contributio vector to the entropy by a leave-one-out comparison
   NumericVector CE(A.nrow());
   // for each feature calculate the contribution to the entropy by a leave-one-out comparison
 	for(unsigned int i = 0; i < A.nrow(); i++){
+	  cout << "i: " << i << endl;
 	  mat Ai = Amat;
 	  // remove the row i
 	  Ai.shed_row(i) ;
 	  //cout << "Ai size: " << Ai.n_cols << "columns and " << Ai.n_rows << "rows" << endl;
-	  double Ei = calculate_entropy(Ai);
+	  double Ei = calculate_entropy_new(Ai);
 	  CE[i] = E - Ei;
 	}
 	
 	return CE;
-}*/
+}
 
 //--------------------------------------------------------------------------------------------------------------
 //--------------------------------------------------------------------------------------------------------------
@@ -316,6 +317,7 @@ NumericVector CE_entropy_FS2_new(NumericMatrix A, unsigned int mc){
   NumericVector idxBest(mc);
   
   for(unsigned int j = 0; j < mc; j++){
+    cout << "j: " << j << endl;
     // total entropy
     double E = calculate_entropy_new(Amat);
     
@@ -324,6 +326,7 @@ NumericVector CE_entropy_FS2_new(NumericMatrix A, unsigned int mc){
     
     // for each feature calculate the contribution to the entropy by a leave-one-out comparison
     for(unsigned int i = 0; i < Amat.n_rows; i++){
+      
       mat Ai = Amat;
       // remove row i and column i
       Ai.shed_row(i);

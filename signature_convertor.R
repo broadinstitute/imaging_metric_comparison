@@ -2,7 +2,7 @@
 library(magrittr)
 library(dplyr)
 
-#' Function to do profiles of the compounds
+#' Function to do signature of the compounds (by averaging the profiles over the replicate)
 #' @param pf the data file
 #' @return profiles
 

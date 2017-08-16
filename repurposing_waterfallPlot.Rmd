@@ -1,0 +1,276 @@
+---
+title: "repurposing data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(ggplot2)
+```
+
+The data are already preprossed (feature selection with findCorrelation was performed).
+52223 observations, 414 features, 22 metadata
+625 different MOA
+1552 different Metadata_pert_iname
+1571 different Metadata_broad_sample
+6 doses for each compounds
+136 plates, 384 wells in each
+12, 24 or 30 replicates for each compounds (be carefull without looking at doses...)
+for each doses: 2, 4, 5 (loosing some replicates in cell profiler if blank, etc.)
+3264 DMSO
+
+
+```{r data}
+filename <- "../../input/repurposing/2016_04_01_a549_48hr_batch1_normalized.rds"
+Pf <- readRDS(filename)
+
+# concatenate name + dose -> unique name for each dose
+Pf %<>% 
+  mutate(Metadata_broad_sample_id = Metadata_broad_sample) 
+Pf %<>%
+  mutate(Metadata_broad_sample = paste(Metadata_broad_sample, Metadata_mmoles_per_liter, sep="@"))
+
+metadata <-
+  colnames(Pf) %>% str_subset("^Metadata_")
+
+variables <-
+  colnames(Pf) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+```
+
+```{r filtering}
+# there are two compounds that are removed because no MOA are associated and also DMSO
+Pf %<>% filter(!is.na(Metadata_moa))
+
+# remove "BRD-K60230970-001-10-0@19.9991253536431" because it is a toxic compounds
+Pf %<>% filter(Metadata_broad_sample != "BRD-K60230970-001-10-0@19.9991253536431")
+
+```
+
+```{r rank of dose}
+# add rank to the dose, because each compounds does not have the same doses
+rank <- Pf[!duplicated(Pf$Metadata_broad_sample),]
+
+rank %<>%
+  arrange(Metadata_mmoles_per_liter) %>%
+  group_by(Metadata_broad_sample_id) %>%
+  mutate(Metadata_rank=row_number()) %>%
+  ungroup %>%
+  select(one_of("Metadata_rank", "Metadata_broad_sample"))
+
+Pf %<>%
+  left_join(., rank, by = "Metadata_broad_sample")
+
+```
+
+First before dealing with the doses, we can select the compounds that are showing a phenotype
+
+```{r selecting compounds showing a phenotype}
+
+# uplodaing functions
+source("hit_selection_correlation_function.R")
+
+hit <- hit_selection_correlation(Pf, 
+                                   n.replicate = 5, 
+                                   filename = "2016_04_01_a459",
+                                   cor.method = "pearson", 
+                                   feat.selected = F, 
+                                   seed = 42, 
+                                   N = 5000, 
+                                   dir.save = "repurposing",
+                                   dir.save.plus = "/hit_selected/Pearson/")
+
+
+```
+
+After hit selection: 37'486 observations (7632 compounds out of 9288) -> hit ratio = 0.8217
+
+Select all rank 1 for the doses, then rank 2, etc
+and do the correlation matrix by rank.
+
+```{r data hit selected}
+filename_dose <- "../../input/repurposing/hit_selected/Pearson/2016_04_01_a459_seed_42.rds"
+Pf_selected <- readRDS(filename_dose)
+
+metadata <-
+  colnames(Pf_selected) %>% str_subset("^Metadata_")
+
+variables <-
+  colnames(Pf_selected) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+
+```
+
+Do the signature of each compound-dose: 7632 observations
+
+```{r signature}
+source("profile_generator.R")
+
+Pf_selected %<>% profile_generator(.)
+
+```
+
+Metadata moa: have to slip based on |
+Separate the Metadata information from the features.
+
+```{r moa}
+all_metadata <- 
+  Pf_selected %>%
+  select(one_of(metadata))
+
+
+for (i in 1:nrow(all_metadata)){
+  # if there are more than 1 moa associated
+  if (str_detect(all_metadata$Metadata_moa[i], "\\|")){
+    t1 <- str_trim(str_split(all_metadata$Metadata_moa[i], "\\|")[[1]])
+    all_metadata$Metadata_moa[i] <- t1[1]
+    for(j in 2:length(t1)){
+      new.row <- all_metadata[i,]
+      new.row$Metadata_moa <- t1[j]
+      all_metadata <- rbind(all_metadata, new.row)
+    }
+  }
+}
+```
+
+
+```{r dose}
+###### Here change the dose of interest!!
+
+dose <- 6
+# select dose with rank dose
+Pf_selected_dose <-
+  Pf_selected %>%
+  filter(Metadata_rank == dose)
+
+all_metadata_dose <-
+  all_metadata %>%
+  filter(Metadata_rank == dose)
+
+# remove MOA that are appearing too few times to do a waterfalls plot
+n.MOA <-
+  table(all_metadata_dose$Metadata_moa) %>%
+  as.data.frame() %>%
+  filter(Freq > 1)
+
+all_metadata_dose %<>%
+  filter(Metadata_moa %in% n.MOA$Var1)
+
+# select the sample that are appearing at least twice
+Pf_selected_dose %<>%
+  filter(Metadata_broad_sample %in% unique(all_metadata_dose$Metadata_broad_sample))
+
+# select only the features variables
+Pf_selected_dose %<>%
+  select(one_of(variables, 'Metadata_broad_sample'))
+
+test <- 
+  all_metadata_dose %>%
+  left_join(., Pf_selected_dose, by = "Metadata_broad_sample")
+
+```
+
+## Correlation compound-compound 
+
+```{r correlation cmpd-cmpd}
+# remove non unique rows -> but loosing MOA information....
+row.names(Pf_selected_dose) <- Pf_selected_dose$Metadata_broad_sample
+# correlation compound-compound
+cor.cmpd <-
+  Pf_selected_dose %>% 
+  ungroup %>%
+  select(one_of(variables)) %>%
+  as.matrix() %>%
+  t() %>%
+  cor()
+```
+
+```{r combining correlation with moa info}
+cor.cmpd.pair <- 
+    melt(cor.cmpd) %>%
+    rename(cmpd1 = Var1, cmpd2 = Var2, corr = value) %>% # rename columns
+    filter(cmpd1 != cmpd2) %>% # remove column were same compound
+    full_join(.,
+              all_metadata_dose,
+              by = c("cmpd1" = "Metadata_broad_sample")) %>%
+    full_join(.,
+              all_metadata_dose,
+              by = c("cmpd2" = "Metadata_broad_sample")) %>%
+    mutate(value = ifelse(Metadata_moa.x == Metadata_moa.y, 1, 0))
+```
+
+```{r waterfall plot}
+waterfall_plot <- function(moa.name){
+  tA <- 
+    cor.cmpd.pair %>% 
+    group_by(cmpd1) %>% 
+    filter(Metadata_moa.x %in% moa.name) %>% 
+    select(-one_of("Metadata_moa.x", "Metadata_moa.y")) %>%
+    arrange(desc(value)) %>% 
+    group_by(cmpd1, cmpd2) %>% 
+    slice(1) %>%
+    ungroup %>%
+    select(-cmpd2) %>%
+    group_by(cmpd1) %>%
+    arrange(desc(corr)) %>% 
+    mutate(id = row_number()) %>%
+    ungroup %>%
+    mutate(Metadata_pert_iname.x = paste(Metadata_pert_iname.x, substr(as.character(Metadata_mmoles_per_liter.x), start=1, stop=6), sep=' @ '))
+
+  # sort the plot to do a waterfall (smaller rank to higher rank)
+  tA2 <-
+    tA %>%
+    group_by(Metadata_pert_iname.x) %>%
+    filter(value == 1) %>%
+    summarise(rank_corr = sum(id)) %>%
+    arrange(rank_corr)
+  tA$Metadata_pert_iname.x <- factor(tA$Metadata_pert_iname.x, levels=tA2$Metadata_pert_iname.x)
+  
+  
+  
+  # tric to have a larger band
+  tmp <- tA %>% filter(value == 1)
+  tmp %<>% mutate(id = id-1)
+  tmp %<>% filter(id > 1)
+  tmp2 <- tA %>% filter(value == 1)
+  tmp2 %<>% mutate(id = id+1)
+  tmp2 %<>% filter(id <= max(tA$id))
+  tA %<>% bind_rows(., tmp) %>% bind_rows(., tmp2)
+  
+  wf <- ggplot(data = tA, aes(x = Metadata_pert_iname.x, y = id)) +
+    geom_tile(aes(fill = value)) +
+    scale_fill_gradient(low = "white", high = "black") +
+    scale_y_reverse() + 
+    labs(title = moa.name, x = "compound name", y = "compound ranked by correlation") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    guides(fill=FALSE)
+  
+  if(moa.name == "sodium/glucose cotransporter inhibitor"){
+    moa.name <- "sodium_glucose_cotransporter_inhibitor"
+  }
+  if(moa.name == "sodium/potassium/chloride transporter inhibitor"){
+    moa.name <- "sodium_potassium_chloride_transporter_inhibitor"
+  }
+  
+  filename = paste("../results/repurposing/waterfall_", moa.name, "_dose_", as.character(dose), ".png", sep="")
+  
+  ggsave(filename, width = 7, height = 5)
+  
+  return(wf)
+}
+
+moa.list <- unique(cor.cmpd.pair$Metadata_moa.x)
+
+for(m in moa.list){
+  wf_plot <- waterfall_plot(m)
+  print(wf_plot)
+}
+
+```
+
+
+
+
+
+

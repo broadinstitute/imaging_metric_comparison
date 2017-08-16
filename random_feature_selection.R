@@ -12,14 +12,18 @@ random_feature_selection <- function(pf, nb.feat, seed=42){
   
   print("Running random feature selection...")
   
+  metadata <-
+    colnames(pf) %>% str_subset("^Metadata_")
+  
+  variables <-
+    colnames(pf) %>% str_subset("^Cells_|^Cytoplasm_|^Nuclei_")
+  
   set.seed(seed = seed)
-  random.features <- sample(1:length(pf$feat_cols), nb.feat, replace=F)
+  random.features <- sample(1:length(variables), nb.feat, replace=F)
   
-  tmp <- pf$data[,pf$feat_cols] %>% select(random.features)
+  tmp <- pf %>% select(one_of(variables)) %>% select(random.features)
   
-  pf$data <- bind_cols(pf$data[,pf$factor_cols], tmp)
-  
-  pf$feat_cols <- pf$feat_cols[random.features]
+  pf <- bind_cols(Pf %>% select(one_of(metadata)), tmp)
   
   print("New dataset with random features selected!")
   

@@ -2,7 +2,7 @@
 
 
 # uplodaing function
-source("agglomerative_clustering_old_function.R")
+source("agglomerative_clustering_nclust_function.R")
 
 #library needed
 library(magrittr)

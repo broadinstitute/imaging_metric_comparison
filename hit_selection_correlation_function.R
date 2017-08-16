@@ -9,13 +9,12 @@ library(tidyverse)
 
 
 #' Function that perform Hit Selection.
-#' Hit selection is performed based on Pearson correlation.
+#' Hit selection is performed based on correlation. (pearson by default)
 #'
 #' @param pf the data file
 #' @param n.replicate number of replicate per compounds
 #' @param filename name of the method
 #' @param cor.method method of correlation: "pearson", "kendall", "spearman"
-#' @param feat.selected boolean if data as been feature selecteed
 #' @param N number of data to make the non replicate distance distribution
 #' @param seed seed number for reproductibility
 #' @param nCPU number of CPU cores for parallelization
@@ -23,14 +22,13 @@ library(tidyverse)
 
 hit_selection_correlation <- function(pf, 
                                       n.replicate = 4,
-                                      filename = "Hit_pearson", 
-                                      cor.method = "pearson", 
-                                      feat.selected = FALSE, 
+                                      filename = "Pearson", 
+                                      cor.method = "pearson",
                                       N = 5000, 
                                       seed = 42, 
                                       nCPU = 7,
                                       dir.save = "BBBC022_2013/selected_single_cells",
-                                      dir.save.plus = "/hit_selected/random/Pearson/"){ 
+                                      dir.save.plus = "/hit_selected/Pearson/"){ 
   message(paste('Running Pearson Hit selection...', filename))
   
   # computational time
@@ -131,16 +129,6 @@ hit_selection_correlation <- function(pf,
     filter(Metadata_broad_sample %in% hit.select.IDs)
   
   # save new dataset
-  if(feat.selected){
-    filename.save <- paste("../../input/",
-                           dir.save,
-                           dir.save.plus, 
-                           strsplit(filename, ".rds"),
-                           "_FS2_seed",
-                           seed,
-                           ".rds", 
-                           sep = "")
-  } else {
     filename.save <- paste("../../input/",
                            dir.save,
                            dir.save.plus,
@@ -149,7 +137,6 @@ hit_selection_correlation <- function(pf,
                            seed,
                            ".rds", 
                            sep = "")
-  }
   
   #### uncomment if want to save file
   pf %>%
@@ -158,8 +145,6 @@ hit_selection_correlation <- function(pf,
   end.time <- Sys.time() 
   time.taken <- end.time - start.time
   time.taken
-  
-  #message(paste('time to run: ', time.taken))
-  
+
   return(hit.ratio)
 }

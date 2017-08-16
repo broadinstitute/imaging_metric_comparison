@@ -2,14 +2,24 @@
 ### BBBC022 Data ###
 ####################
 
+# Pipeline from hit selection to enrichment ratio for random feature selection with BBBC022 dataset.
+# use the following functions: 
+
 library(magrittr)
 library(dplyr)
 library(tidyverse)
 library(stringr)
 
+# uplodaing functions
+source("hit_selection_correlation_function.R")
+source("hit_selection_jaccard_function.R")
+source("enrichment_ratio_function.R")
+
 filenames <- list.files(path = "../../input/BBBC022_2013/Profile/feat_selected/random/")
 
 filenames <- c("200","250","300","350","400","500","600","700","750")
+
+nCPU <- detectCores()
 
 all <- 1:length(filenames)
 for(n in all){
@@ -45,10 +55,6 @@ for(n in all){
     # Hit Selection #
     #################
     
-    # uplodaing functions
-    source("hit_selection_correlation_function.R")
-    source("hit_selection_jaccard_function.R")
-    
     start.time <- Sys.time()
     
     # reproductibility
@@ -62,6 +68,7 @@ for(n in all){
                                      feat.selected = F, 
                                      seed = seeds[j], 
                                      N = 5000, 
+                                     nCPU = nCPU,
                                      dir.save = dir.save)
     hit.ratio.p <- cbind(hit.ratio.p, hit)
     
@@ -74,6 +81,7 @@ for(n in all){
                                  feat.selected = F, 
                                  seed = seeds[j], 
                                  N = 5000,
+                                 nCPU = nCPU,
                                  dir.save = dir.save)
     hit.ratio.j <- cbind(hit.ratio.j, hit)
   }
@@ -95,8 +103,6 @@ for(n in all){
   ####################
   # Enrichment ratio #
   ####################
-  
-  source("enrichment_ratio_function.R")
   
   data.filenames.p <- list.files(path = "../../input/BBBC022_2013/Profile/hit_selected/random/Pearson/")
   data.filenames.j <- list.files(path = "../../input/BBBC022_2013/Profile/hit_selected/random/Jaccard/")
@@ -120,13 +126,13 @@ for(n in all){
     pf.p <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Profile", "hit_selected", "random", "Pearson", data.filenames.p[i]))
     enrichment.ratio <- bind_rows(enrichment.ratio, 
                                   enrichment_ratio(pf.p, top.x = 0.02, seed = seed,
-                                                   nCPU = 7, N = 1000, filename = data.filenames.p[i], method = "Pearson"))
+                                                   nCPU = nCPU, N = 1000, filename = data.filenames.p[i], method = "Pearson"))
     
     
     pf.j <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "Profile", "hit_selected", "random", "Jaccard", data.filenames.j[i]))  
     enrichment.ratio <- bind_rows(enrichment.ratio, 
                                   enrichment_ratio(pf.j, top.x = 0.02, seed = seed, 
-                                                   nCPU = 7, N = 1000, filename = data.filenames.j[i], method = "Jaccard"))
+                                                   nCPU = nCPU, N = 1000, filename = data.filenames.j[i], method = "Jaccard"))
   }
   
   
@@ -141,8 +147,7 @@ for(n in all){
   
   filename.enr.ratio <- paste("../../input/BBBC022_2013/Profile/enrichment_ratio/random/enr_ratio_", 
                               filenames[n], 
-                              "feat",
-                              ".Rda",
+                              "feat.Rda",
                               sep = "")
   
   save(enr.ratio, file=filename.enr.ratio)

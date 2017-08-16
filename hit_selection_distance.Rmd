@@ -244,7 +244,7 @@ print(high.median.dist)
 - Distance method compared to correlation metric gives a lower ratio of hit selection (more or less 10% lower).
 
 ```{r plot}
-type1 <- rep("Random Replicate Distance", length(random.replicate.dist.median))
+type1 <- rep("Non-replicate Distance", length(random.replicate.dist.median))
 type2 <- rep("Replicate Distance", length(comp.dist.median))
 type <- c(type1, type2)
 distance <- c(random.replicate.dist.median, comp.dist.median)
@@ -252,7 +252,7 @@ dat <- data.frame(distance = distance, type = type)
 ggplot(dat, aes(x=distance, fill=type, y=..density../sum(..density..))) +
   geom_histogram(binwidth=5, alpha=.4, position="identity")	+ 
   xlim(0, 400) + 
-  geom_vline(xintercept=thres) +
+  geom_vline(xintercept=thres, colour = "red", alpha = 0.4) +
   ylab("density")
 
 ```

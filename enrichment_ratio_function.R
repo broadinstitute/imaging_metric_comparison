@@ -5,8 +5,8 @@ library(doMC)
 library(reshape2)
 library(stringr)
 
-#' Function that perform Hit Selection.
-#' Hit selection is performed based on Pearson correlation.
+#' Function that perform the Enrichment ratio
+#' This method is based on the MOA information, here separation with a comma
 #'
 #' @param pf the data file
 #' @param top.x top percentage of matching compound
@@ -48,7 +48,7 @@ enrichment_ratio <- function(pf,
       cor.cmpd.pair %>%
       group_by(cmpd1) %>% # group by compound
       arrange(cmpd1, desc(corr)) %>% # sort correlation from higher to lower
-      filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top 10% correlation in each group
+      filter(corr > quantile(corr, 1.0-top.x)) %>% # look at the top x% correlation in each group
       summarise(p = sum(value)/n()) %>% # percentage of similar moa
       ungroup()
     

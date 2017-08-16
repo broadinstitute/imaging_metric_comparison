@@ -8,12 +8,17 @@ library(doMC)
 library(stringr)
 library(tidyverse)
 
-agglomarative_clustering <- function(filename, numClust){
-  message(paste('runing agglomerative clustering for file: ',filename, 'with k = ', numClust))
+# This function is doing the following for BBBC022 dataset:
+# 1) average along the replicate to have one single signature per compound
+# 2) Agglomerative clustering using average linkage function
+# 3) separate in numClust clusters
+# 4) use Fisher's exact test to calculate the Odds ratio: same/different MOAs and same/different clusters classes.
+
+# pf: profile of BBBC022 after hit selection
+# numClust: number of clusters
+agglomarative_clustering <- function(pf, numClust){
+  message(paste('runing agglomerative clustering with k = ', numClust))
   start.time <- Sys.time()
-  
-  # laoding data
-  pf <- readRDS(file.path("..", "..", "input", "BBBC022_2013", "old", filename))
   
   # find the different compounds
   IDs <- distinct(pf$data, Image_Metadata_BROAD_ID)

@@ -1,6 +1,6 @@
 # Optimizing the Image-Based Cell Profiling Pipeline
 
-In this project, we explore images of cancer cells reacting to some treatments (compounds) in a high-throughput assay.
+In this [project](https://github.com/broadinstitute/imaging_metric_comparison/blob/master/Duc_Marie_thesis.pdf), we explore images of cancer cells reacting to some treatments (compounds) in a high-throughput assay.
 The aim is to improve the morphological profiling pipeline steps which is converting cell images into a signature for 
 each treatment.
 
